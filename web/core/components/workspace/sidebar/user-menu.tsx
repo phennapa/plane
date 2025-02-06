@@ -2,90 +2,66 @@
 
 import React from "react";
 import { observer } from "mobx-react";
-import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
-// ui
-import { Tooltip } from "@plane/ui";
+import { useParams } from "next/navigation";
+import { Home, Inbox, PenSquare } from "lucide-react";
+// plane imports
+import { EUserWorkspaceRoles } from "@plane/constants";
+import { UserActivityIcon } from "@plane/ui";
 // components
-import { NotificationAppSidebarOption } from "@/components/workspace-notifications";
-// constants
-import { SIDEBAR_USER_MENU_ITEMS } from "@/constants/dashboard";
-import { SIDEBAR_CLICKED } from "@/constants/event-tracker";
-import { EUserWorkspaceRoles } from "@/constants/workspace";
+import { SidebarUserMenuItem } from "@/components/workspace/sidebar";
 // helpers
 import { cn } from "@/helpers/common.helper";
 // hooks
-import { useAppTheme, useEventTracker, useUser } from "@/hooks/store";
-import { usePlatformOS } from "@/hooks/use-platform-os";
+import { useAppTheme, useUserPermissions, useUser } from "@/hooks/store";
 
 export const SidebarUserMenu = observer(() => {
-  // store hooks
-  const { toggleSidebar, sidebarCollapsed } = useAppTheme();
-  const { captureEvent } = useEventTracker();
-  const { isMobile } = usePlatformOS();
-  const {
-    membership: { currentWorkspaceRole },
-  } = useUser();
-  // router params
   const { workspaceSlug } = useParams();
-  // pathname
-  const pathname = usePathname();
-  // computed
-  const workspaceMemberInfo = currentWorkspaceRole || EUserWorkspaceRoles.GUEST;
+  const { sidebarCollapsed } = useAppTheme();
+  const { workspaceUserInfo } = useUserPermissions();
+  const { data: currentUser } = useUser();
 
-  const handleLinkClick = (itemKey: string) => {
-    if (window.innerWidth < 768) {
-      toggleSidebar();
-    }
-    captureEvent(SIDEBAR_CLICKED, {
-      destination: itemKey,
-    });
-  };
+  const SIDEBAR_USER_MENU_ITEMS = [
+    {
+      key: "home",
+      labelTranslationKey: "home",
+      href: `/${workspaceSlug.toString()}/`,
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+      Icon: Home,
+    },
+    {
+      key: "your-work",
+      labelTranslationKey: "your_work",
+      href: `/${workspaceSlug.toString()}/profile/${currentUser?.id}/`,
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
+      Icon: UserActivityIcon,
+    },
+    {
+      key: "notifications",
+      labelTranslationKey: "inbox",
+      href: `/${workspaceSlug.toString()}/notifications/`,
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER, EUserWorkspaceRoles.GUEST],
+      Icon: Inbox,
+    },
+    {
+      key: "drafts",
+      labelTranslationKey: "drafts",
+      href: `/${workspaceSlug.toString()}/drafts/`,
+      access: [EUserWorkspaceRoles.ADMIN, EUserWorkspaceRoles.MEMBER],
+      Icon: PenSquare,
+    },
+  ];
+
+  const draftIssueCount = workspaceUserInfo[workspaceSlug.toString()]?.draft_issue_count;
 
   return (
     <div
-      className={cn("w-full space-y-1", {
+      className={cn("flex flex-col gap-0.5", {
         "space-y-0": sidebarCollapsed,
       })}
     >
-      {SIDEBAR_USER_MENU_ITEMS.map(
-        (link) =>
-          workspaceMemberInfo >= link.access && (
-            <Link key={link.key} href={`/${workspaceSlug}${link.href}`} onClick={() => handleLinkClick(link.key)}>
-              <Tooltip
-                tooltipContent={link.label}
-                position="right"
-                className="ml-2"
-                disabled={!sidebarCollapsed}
-                isMobile={isMobile}
-              >
-                <div
-                  className={cn(
-                    "relative group w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 outline-none text-custom-sidebar-text-200 hover:bg-custom-sidebar-background-90 focus:bg-custom-sidebar-background-90",
-                    {
-                      "text-custom-primary-100 bg-custom-primary-100/10 hover:bg-custom-primary-100/10": link.highlight(
-                        pathname,
-                        `/${workspaceSlug}`
-                      ),
-                      "p-0 size-8 aspect-square justify-center mx-auto": sidebarCollapsed,
-                    }
-                  )}
-                >
-                  <span className="flex-shrink-0 size-4 grid place-items-center">
-                    <link.Icon className="size-4" />
-                  </span>
-                  {!sidebarCollapsed && <p className="text-sm leading-5 font-medium">{link.label}</p>}
-                  {link.key === "notifications" && (
-                    <NotificationAppSidebarOption
-                      workspaceSlug={workspaceSlug.toString()}
-                      isSidebarCollapsed={sidebarCollapsed ?? false}
-                    />
-                  )}
-                </div>
-              </Tooltip>
-            </Link>
-          )
-      )}
+      {SIDEBAR_USER_MENU_ITEMS.map((item) => (
+        <SidebarUserMenuItem key={item.key} item={item} draftIssueCount={draftIssueCount} />
+      ))}
     </div>
   );
 });

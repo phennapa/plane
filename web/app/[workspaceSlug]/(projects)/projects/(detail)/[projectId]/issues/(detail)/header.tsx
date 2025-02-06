@@ -2,17 +2,16 @@
 
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
-import { PanelRight } from "lucide-react";
 // ui
-import { Breadcrumbs, LayersIcon } from "@plane/ui";
+import { Breadcrumbs, LayersIcon, Header } from "@plane/ui";
 // components
-import { BreadcrumbLink, Logo } from "@/components/common";
+import { BreadcrumbLink } from "@/components/common";
 import { IssueDetailQuickActions } from "@/components/issues";
-// helpers
-import { cn } from "@/helpers/common.helper";
 // hooks
-import { useAppTheme, useIssueDetail, useProject } from "@/hooks/store";
+import { useIssueDetail, useProject } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
+// plane web
+import { ProjectBreadcrumb } from "@/plane-web/components/breadcrumbs";
 
 export const ProjectIssueDetailsHeader = observer(() => {
   // router
@@ -20,35 +19,18 @@ export const ProjectIssueDetailsHeader = observer(() => {
   const { workspaceSlug, projectId, issueId } = useParams();
   // store hooks
   const { currentProjectDetails, loader } = useProject();
-  const { issueDetailSidebarCollapsed, toggleIssueDetailSidebar } = useAppTheme();
   const {
     issue: { getIssueById },
   } = useIssueDetail();
   // derived values
   const issueDetails = issueId ? getIssueById(issueId.toString()) : undefined;
-  const isSidebarCollapsed = issueDetailSidebarCollapsed;
 
   return (
-    <div className="relative z-10 flex h-[3.75rem] w-full flex-shrink-0 flex-row items-center justify-between gap-x-2 gap-y-4 bg-custom-sidebar-background-100 p-4">
-      <div className="flex w-full flex-grow items-center gap-2 overflow-ellipsis whitespace-nowrap">
+    <Header>
+      <Header.LeftItem>
         <div>
-          <Breadcrumbs onBack={router.back} isLoading={loader}>
-            <Breadcrumbs.BreadcrumbItem
-              type="text"
-              link={
-                <BreadcrumbLink
-                  href={`/${workspaceSlug}/projects`}
-                  label={currentProjectDetails?.name ?? "Project"}
-                  icon={
-                    currentProjectDetails && (
-                      <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
-                        <Logo logo={currentProjectDetails?.logo_props} size={16} />
-                      </span>
-                    )
-                  }
-                />
-              }
-            />
+          <Breadcrumbs onBack={router.back} isLoading={loader === "init-loader"}>
+            <ProjectBreadcrumb />
 
             <Breadcrumbs.BreadcrumbItem
               type="text"
@@ -75,17 +57,14 @@ export const ProjectIssueDetailsHeader = observer(() => {
             />
           </Breadcrumbs>
         </div>
-      </div>
-      <IssueDetailQuickActions
-        workspaceSlug={workspaceSlug.toString()}
-        projectId={projectId.toString()}
-        issueId={issueId.toString()}
-      />
-      <button className="block md:hidden" onClick={() => toggleIssueDetailSidebar()}>
-        <PanelRight
-          className={cn("h-4 w-4 ", !isSidebarCollapsed ? "text-custom-primary-100" : " text-custom-text-200")}
+      </Header.LeftItem>
+      <Header.RightItem>
+        <IssueDetailQuickActions
+          workspaceSlug={workspaceSlug.toString()}
+          projectId={projectId.toString()}
+          issueId={issueId.toString()}
         />
-      </button>
-    </div>
+      </Header.RightItem>
+    </Header>
   );
 });

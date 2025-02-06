@@ -1,5 +1,3 @@
-import { EIssueLayoutTypes } from "constants/issue";
-
 export type TIssueLayouts =
   | "list"
   | "kanban"
@@ -18,6 +16,7 @@ export type TIssueGroupByOptions =
   | "cycle"
   | "module"
   | "target_date"
+  | "team_project"
   | null;
 
 export type TIssueOrderByOptions =
@@ -40,8 +39,8 @@ export type TIssueOrderByOptions =
   | "-issue_cycle__cycle__name"
   | "target_date"
   | "-target_date"
-  | "estimate_point"
-  | "-estimate_point"
+  | "estimate_point__key"
+  | "-estimate_point__key"
   | "start_date"
   | "-start_date"
   | "link_count"
@@ -51,7 +50,7 @@ export type TIssueOrderByOptions =
   | "sub_issues_count"
   | "-sub_issues_count";
 
-export type TIssueTypeFilters = "active" | "backlog" | null;
+export type TIssueGroupingFilters = "active" | "backlog" | null;
 
 export type TIssueExtraOptions = "show_empty_groups" | "sub_issue";
 
@@ -69,6 +68,7 @@ export type TIssueParams =
   | "start_date"
   | "target_date"
   | "project"
+  | "team_project"
   | "group_by"
   | "sub_group_by"
   | "order_by"
@@ -76,7 +76,10 @@ export type TIssueParams =
   | "sub_issue"
   | "show_empty_groups"
   | "cursor"
-  | "per_page";
+  | "per_page"
+  | "issue_type"
+  | "layout"
+  | "expand";
 
 export type TCalendarLayouts = "month" | "week";
 
@@ -89,11 +92,13 @@ export interface IIssueFilterOptions {
   cycle?: string[] | null;
   module?: string[] | null;
   project?: string[] | null;
+  team_project?: string[] | null;
   start_date?: string[] | null;
   state?: string[] | null;
   state_group?: string[] | null;
   subscriber?: string[] | null;
   target_date?: string[] | null;
+  issue_type?: string[] | null;
 }
 
 export interface IIssueDisplayFilterOptions {
@@ -103,11 +108,11 @@ export interface IIssueDisplayFilterOptions {
   };
   group_by?: TIssueGroupByOptions;
   sub_group_by?: TIssueGroupByOptions;
-  layout?: EIssueLayoutTypes;
+  layout?: any; // TODO: Need to fix this and set it to enum EIssueLayoutTypes
   order_by?: TIssueOrderByOptions;
   show_empty_groups?: boolean;
   sub_issue?: boolean;
-  type?: TIssueTypeFilters;
+  type?: TIssueGroupingFilters;
 }
 export interface IIssueDisplayProperties {
   assignee?: boolean;
@@ -125,6 +130,7 @@ export interface IIssueDisplayProperties {
   updated_on?: boolean;
   modules?: boolean;
   cycle?: boolean;
+  issue_type?: boolean;
 }
 
 export type TIssueKanbanFilters = {
@@ -202,4 +208,6 @@ export interface IssuePaginationOptions {
   before?: string;
   after?: string;
   groupedBy?: TIssueGroupByOptions;
+  subGroupedBy?: TIssueGroupByOptions;
+  orderBy?: TIssueOrderByOptions;
 }

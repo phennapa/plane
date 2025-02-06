@@ -1,10 +1,10 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { EIssuesStoreType } from "@plane/constants";
 import { TIssue, TIssueGroupByOptions, TIssueOrderByOptions } from "@plane/types";
 import { TOAST_TYPE, setToast } from "@plane/ui";
 import { GroupDropLocation, handleGroupDragDrop } from "@/components/issues/issue-layouts/utils";
-import { EIssuesStoreType } from "@/constants/issue";
 import { ISSUE_FILTER_DEFAULT_DATA } from "@/store/issue/helpers/base-issues.store";
 import { useIssueDetail, useIssues } from "./store";
 import { useIssuesActions } from "./use-issues-actions";
@@ -16,7 +16,11 @@ type DNDStoreType =
   | EIssuesStoreType.PROJECT_VIEW
   | EIssuesStoreType.DRAFT
   | EIssuesStoreType.PROFILE
-  | EIssuesStoreType.ARCHIVED;
+  | EIssuesStoreType.ARCHIVED
+  | EIssuesStoreType.WORKSPACE_DRAFT
+  | EIssuesStoreType.TEAM
+  | EIssuesStoreType.TEAM_VIEW
+  | EIssuesStoreType.EPIC;
 
 export const useGroupIssuesDragNDrop = (
   storeType: DNDStoreType,
@@ -65,7 +69,7 @@ export const useGroupIssuesDragNDrop = (
 
     if (isCycleChanged && workspaceSlug) {
       if (data[cycleKey]) {
-        addCycleToIssue(workspaceSlug.toString(), projectId, data[cycleKey], issueId).catch(() =>
+        addCycleToIssue(workspaceSlug.toString(), projectId, data[cycleKey]?.toString() ?? "", issueId).catch(() =>
           setToast(errorToastProps)
         );
       } else {

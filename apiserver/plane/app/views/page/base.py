@@ -18,8 +18,8 @@ from django.db.models.functions import Coalesce
 from rest_framework import status
 from rest_framework.response import Response
 
-
-from plane.app.permissions import ProjectEntityPermission
+# Module imports
+from plane.app.permissions import allow_permission, ROLE
 from plane.app.serializers import (
     PageLogSerializer,
     PageSerializer,
@@ -32,12 +32,14 @@ from plane.db.models import (
     UserFavorite,
     ProjectMember,
     ProjectPage,
+    Project,
+    UserRecentVisit,
 )
-
-# Module imports
+from plane.utils.error_codes import ERROR_CODES
 from ..base import BaseAPIView, BaseViewSet
-
 from plane.bgtasks.page_transaction_task import page_transaction
+from plane.bgtasks.page_version_task import page_version
+from plane.bgtasks.recent_visited_task import recent_visited_task
 
 
 def unarchive_archive_page_and_descendants(page_id, archived_at):
@@ -59,12 +61,7 @@ def unarchive_archive_page_and_descendants(page_id, archived_at):
 class PageViewSet(BaseViewSet):
     serializer_class = PageSerializer
     model = Page
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
-    search_fields = [
-        "name",
-    ]
+    search_fields = ["name"]
 
     def get_queryset(self):
         subquery = UserFavorite.objects.filter(
@@ -94,8 +91,7 @@ class PageViewSet(BaseViewSet):
             .annotate(
                 project=Exists(
                     ProjectPage.objects.filter(
-                        page_id=OuterRef("id"),
-                        project_id=self.kwargs.get("project_id"),
+                        page_id=OuterRef("id"), project_id=self.kwargs.get("project_id")
                     )
                 )
             )
@@ -110,9 +106,7 @@ class PageViewSet(BaseViewSet):
                 ),
                 project_ids=Coalesce(
                     ArrayAgg(
-                        "projects__id",
-                        distinct=True,
-                        filter=~Q(projects__id=True),
+                        "projects__id", distinct=True, filter=~Q(projects__id=True)
                     ),
                     Value([], output_field=ArrayField(UUIDField())),
                 ),
@@ -121,15 +115,16 @@ class PageViewSet(BaseViewSet):
             .distinct()
         )
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id):
         serializer = PageSerializer(
             data=request.data,
             context={
                 "project_id": project_id,
                 "owned_by_id": request.user.id,
-                "description_html": request.data.get(
-                    "description_html", "<p></p>"
-                ),
+                "description": request.data.get("description", {}),
+                "description_binary": request.data.get("description_binary", None),
+                "description_html": request.data.get("description_html", "<p></p>"),
             },
         )
 
@@ -142,26 +137,22 @@ class PageViewSet(BaseViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def partial_update(self, request, slug, project_id, pk):
         try:
             page = Page.objects.get(
-                pk=pk,
-                workspace__slug=slug,
-                projects__id=project_id,
+                pk=pk, workspace__slug=slug, projects__id=project_id
             )
 
             if page.is_locked:
                 return Response(
-                    {"error": "Page is locked"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"error": "Page is locked"}, status=status.HTTP_400_BAD_REQUEST
                 )
 
             parent = request.data.get("parent", None)
             if parent:
                 _ = Page.objects.get(
-                    pk=parent,
-                    workspace__slug=slug,
-                    projects__id=project_id,
+                    pk=parent, workspace__slug=slug, projects__id=project_id
                 )
 
             # Only update access if the page owner is the requesting  user
@@ -176,9 +167,7 @@ class PageViewSet(BaseViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            serializer = PageDetailSerializer(
-                page, data=request.data, partial=True
-            )
+            serializer = PageDetailSerializer(page, data=request.data, partial=True)
             page_description = page.description_html
             if serializer.is_valid():
                 serializer.save()
@@ -187,18 +176,14 @@ class PageViewSet(BaseViewSet):
                     page_transaction.delay(
                         new_value=request.data,
                         old_value=json.dumps(
-                            {
-                                "description_html": page_description,
-                            },
+                            {"description_html": page_description},
                             cls=DjangoJSONEncoder,
                         ),
                         page_id=pk,
                     )
 
                 return Response(serializer.data, status=status.HTTP_200_OK)
-            return Response(
-                serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Page.DoesNotExist:
             return Response(
                 {
@@ -207,18 +192,52 @@ class PageViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def retrieve(self, request, slug, project_id, pk=None):
         page = self.get_queryset().filter(pk=pk).first()
-        if page is None:
+        project = Project.objects.get(pk=project_id)
+
+        """
+        if the role is guest and guest_view_all_features is false and owned by is not 
+        the requesting user then dont show the page
+        """
+
+        if (
+            ProjectMember.objects.filter(
+                workspace__slug=slug,
+                project_id=project_id,
+                member=request.user,
+                role=5,
+                is_active=True,
+            ).exists()
+            and not project.guest_view_all_features
+            and not page.owned_by == request.user
+        ):
             return Response(
-                {"error": "Page not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        else:
-            return Response(
-                PageDetailSerializer(page).data, status=status.HTTP_200_OK
+                {"error": "You are not allowed to view this page"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if page is None:
+            return Response(
+                {"error": "Page not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        else:
+            issue_ids = PageLog.objects.filter(
+                page_id=pk, entity_name="issue"
+            ).values_list("entity_identifier", flat=True)
+            data = PageDetailSerializer(page).data
+            data["issue_ids"] = issue_ids
+            recent_visited_task.delay(
+                slug=slug,
+                entity_name="page",
+                entity_identifier=pk,
+                user_id=request.user.id,
+                project_id=project_id,
+            )
+            return Response(data, status=status.HTTP_200_OK)
+
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
     def lock(self, request, slug, project_id, pk):
         page = Page.objects.filter(
             pk=pk, workspace__slug=slug, projects__id=project_id
@@ -228,6 +247,7 @@ class PageViewSet(BaseViewSet):
         page.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
     def unlock(self, request, slug, project_id, pk):
         page = Page.objects.filter(
             pk=pk, workspace__slug=slug, projects__id=project_id
@@ -238,23 +258,55 @@ class PageViewSet(BaseViewSet):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
+    def access(self, request, slug, project_id, pk):
+        access = request.data.get("access", 0)
+        page = Page.objects.filter(
+            pk=pk, workspace__slug=slug, projects__id=project_id
+        ).first()
+
+        # Only update access if the page owner is the requesting user
+        if (
+            page.access != request.data.get("access", page.access)
+            and page.owned_by_id != request.user.id
+        ):
+            return Response(
+                {
+                    "error": "Access cannot be updated since this page is owned by someone else"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        page.access = access
+        page.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def list(self, request, slug, project_id):
         queryset = self.get_queryset()
+        project = Project.objects.get(pk=project_id)
+        if (
+            ProjectMember.objects.filter(
+                workspace__slug=slug,
+                project_id=project_id,
+                member=request.user,
+                role=5,
+                is_active=True,
+            ).exists()
+            and not project.guest_view_all_features
+        ):
+            queryset = queryset.filter(owned_by=request.user)
         pages = PageSerializer(queryset, many=True).data
         return Response(pages, status=status.HTTP_200_OK)
 
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
     def archive(self, request, slug, project_id, pk):
-        page = Page.objects.get(
-            pk=pk, workspace__slug=slug, projects__id=project_id
-        )
+        page = Page.objects.get(pk=pk, workspace__slug=slug, projects__id=project_id)
 
         # only the owner or admin can archive the page
         if (
             ProjectMember.objects.filter(
-                project_id=project_id,
-                member=request.user,
-                is_active=True,
-                role__lte=15,
+                project_id=project_id, member=request.user, is_active=True, role__lte=15
             ).exists()
             and request.user.id != page.owned_by_id
         ):
@@ -263,25 +315,25 @@ class PageViewSet(BaseViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        UserFavorite.objects.filter(
+            entity_type="page",
+            entity_identifier=pk,
+            project_id=project_id,
+            workspace__slug=slug,
+        ).delete()
+
         unarchive_archive_page_and_descendants(pk, datetime.now())
 
-        return Response(
-            {"archived_at": str(datetime.now())},
-            status=status.HTTP_200_OK,
-        )
+        return Response({"archived_at": str(datetime.now())}, status=status.HTTP_200_OK)
 
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
     def unarchive(self, request, slug, project_id, pk):
-        page = Page.objects.get(
-            pk=pk, workspace__slug=slug, projects__id=project_id
-        )
+        page = Page.objects.get(pk=pk, workspace__slug=slug, projects__id=project_id)
 
         # only the owner or admin can un archive the page
         if (
             ProjectMember.objects.filter(
-                project_id=project_id,
-                member=request.user,
-                is_active=True,
-                role__lte=15,
+                project_id=project_id, member=request.user, is_active=True, role__lte=15
             ).exists()
             and request.user.id != page.owned_by_id
         ):
@@ -299,30 +351,28 @@ class PageViewSet(BaseViewSet):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @allow_permission([ROLE.ADMIN], model=Page, creator=True)
     def destroy(self, request, slug, project_id, pk):
-        page = Page.objects.get(
-            pk=pk, workspace__slug=slug, projects__id=project_id
-        )
-
-        # only the owner and admin can delete the page
-        if (
-            ProjectMember.objects.filter(
-                project_id=project_id,
-                member=request.user,
-                is_active=True,
-                role__gt=20,
-            ).exists()
-            or request.user.id != page.owned_by_id
-        ):
-            return Response(
-                {"error": "Only the owner and admin can delete the page"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        page = Page.objects.get(pk=pk, workspace__slug=slug, projects__id=project_id)
 
         if page.archived_at is None:
             return Response(
                 {"error": "The page should be archived before deleting"},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if page.owned_by_id != request.user.id and (
+            not ProjectMember.objects.filter(
+                workspace__slug=slug,
+                member=request.user,
+                role=20,
+                project_id=project_id,
+                is_active=True,
+            ).exists()
+        ):
+            return Response(
+                {"error": "Only admin or owner can delete the page"},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # remove parent from all the children
@@ -331,16 +381,27 @@ class PageViewSet(BaseViewSet):
         ).update(parent=None)
 
         page.delete()
+        # Delete the user favorite page
+        UserFavorite.objects.filter(
+            project=project_id,
+            workspace__slug=slug,
+            entity_identifier=pk,
+            entity_type="page",
+        ).delete()
+        # Delete the page from recent visit
+        UserRecentVisit.objects.filter(
+            project_id=project_id,
+            workspace__slug=slug,
+            entity_identifier=pk,
+            entity_name="page",
+        ).delete(soft=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class PageFavoriteViewSet(BaseViewSet):
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
-
     model = UserFavorite
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def create(self, request, slug, project_id, pk):
         _ = UserFavorite.objects.create(
             project_id=project_id,
@@ -350,6 +411,7 @@ class PageFavoriteViewSet(BaseViewSet):
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, pk):
         page_favorite = UserFavorite.objects.get(
             project=project_id,
@@ -358,15 +420,11 @@ class PageFavoriteViewSet(BaseViewSet):
             entity_identifier=pk,
             entity_type="page",
         )
-        page_favorite.delete()
+        page_favorite.delete(soft=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class PageLogEndpoint(BaseAPIView):
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
-
     serializer_class = PageLogSerializer
     model = PageLog
 
@@ -405,10 +463,6 @@ class PageLogEndpoint(BaseAPIView):
 
 
 class SubPagesEndpoint(BaseAPIView):
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
-
     @method_decorator(gzip_page)
     def get(self, request, slug, project_id, page_id):
         pages = (
@@ -426,18 +480,15 @@ class SubPagesEndpoint(BaseAPIView):
 
 
 class PagesDescriptionViewSet(BaseViewSet):
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
-
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def retrieve(self, request, slug, project_id, pk):
         page = (
-            Page.objects.filter(
-                pk=pk, workspace__slug=slug, projects__id=project_id
-            )
+            Page.objects.filter(pk=pk, workspace__slug=slug, projects__id=project_id)
             .filter(Q(owned_by=self.request.user) | Q(access=0))
             .first()
         )
+        if page is None:
+            return Response({"error": "Page not found"}, status=404)
         binary_data = page.description_binary
 
         def stream_data():
@@ -449,42 +500,114 @@ class PagesDescriptionViewSet(BaseViewSet):
         response = StreamingHttpResponse(
             stream_data(), content_type="application/octet-stream"
         )
-        response["Content-Disposition"] = (
-            'attachment; filename="page_description.bin"'
-        )
+        response["Content-Disposition"] = 'attachment; filename="page_description.bin"'
         return response
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def partial_update(self, request, slug, project_id, pk):
         page = (
-            Page.objects.filter(
-                pk=pk, workspace__slug=slug, projects__id=project_id
-            )
+            Page.objects.filter(pk=pk, workspace__slug=slug, projects__id=project_id)
             .filter(Q(owned_by=self.request.user) | Q(access=0))
             .first()
         )
 
+        if page is None:
+            return Response({"error": "Page not found"}, status=404)
+
         if page.is_locked:
             return Response(
-                {"error": "Page is locked"},
-                status=471,
+                {
+                    "error_code": ERROR_CODES["PAGE_LOCKED"],
+                    "error_message": "PAGE_LOCKED",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         if page.archived_at:
             return Response(
-                {"error": "Page is archived"},
-                status=472,
+                {
+                    "error_code": ERROR_CODES["PAGE_ARCHIVED"],
+                    "error_message": "PAGE_ARCHIVED",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Serialize the existing instance
+        existing_instance = json.dumps(
+            {"description_html": page.description_html}, cls=DjangoJSONEncoder
+        )
+
+        # Get the base64 data from the request
         base64_data = request.data.get("description_binary")
 
+        # If base64 data is provided
         if base64_data:
             # Decode the base64 data to bytes
             new_binary_data = base64.b64decode(base64_data)
-
+            # capture the page transaction
+            if request.data.get("description_html"):
+                page_transaction.delay(
+                    new_value=request.data, old_value=existing_instance, page_id=pk
+                )
             # Store the updated binary data
             page.description_binary = new_binary_data
             page.description_html = request.data.get("description_html")
+            page.description = request.data.get("description")
             page.save()
+            # Return a success response
+            page_version.delay(
+                page_id=page.id,
+                existing_instance=existing_instance,
+                user_id=request.user.id,
+            )
             return Response({"message": "Updated successfully"})
         else:
             return Response({"error": "No binary data provided"})
+
+
+class PageDuplicateEndpoint(BaseAPIView):
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
+    def post(self, request, slug, project_id, page_id):
+        page = Page.objects.filter(
+            pk=page_id, workspace__slug=slug, projects__id=project_id
+        ).first()
+
+        # get all the project ids where page is present
+        project_ids = ProjectPage.objects.filter(page_id=page_id).values_list(
+            "project_id", flat=True
+        )
+
+        page.pk = None
+        page.name = f"{page.name} (Copy)"
+        page.description_binary = None
+        page.owned_by = request.user
+        page.created_by = request.user
+        page.updated_by = request.user
+        page.save()
+
+        for project_id in project_ids:
+            ProjectPage.objects.create(
+                workspace_id=page.workspace_id,
+                project_id=project_id,
+                page_id=page.id,
+                created_by_id=page.created_by_id,
+                updated_by_id=page.updated_by_id,
+            )
+
+        page_transaction.delay(
+            {"description_html": page.description_html}, None, page.id
+        )
+        page = (
+            Page.objects.filter(pk=page.id)
+            .annotate(
+                project_ids=Coalesce(
+                    ArrayAgg(
+                        "projects__id", distinct=True, filter=~Q(projects__id=True)
+                    ),
+                    Value([], output_field=ArrayField(UUIDField())),
+                )
+            )
+            .first()
+        )
+        serializer = PageDetailSerializer(page)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { observer } from "mobx-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 // types
 import { IProjectView } from "@plane/types";
 // ui
@@ -22,6 +22,7 @@ export const DeleteProjectViewModal: React.FC<Props> = observer((props) => {
   const [isDeleteLoading, setIsDeleteLoading] = useState(false);
   // router
   const { workspaceSlug, projectId } = useParams();
+  const router = useRouter();
   // store hooks
   const { deleteView } = useProjectView();
 
@@ -38,7 +39,7 @@ export const DeleteProjectViewModal: React.FC<Props> = observer((props) => {
     await deleteView(workspaceSlug.toString(), projectId.toString(), data.id)
       .then(() => {
         handleClose();
-
+        router.push(`/${workspaceSlug}/projects/${projectId}/views`);
         setToast({
           type: TOAST_TYPE.SUCCESS,
           title: "Success!",
@@ -63,7 +64,7 @@ export const DeleteProjectViewModal: React.FC<Props> = observer((props) => {
       handleSubmit={handleDeleteView}
       isSubmitting={isDeleteLoading}
       isOpen={isOpen}
-      title="Delete View"
+      title="Delete view"
       content={
         <>
           Are you sure you want to delete view-{" "}

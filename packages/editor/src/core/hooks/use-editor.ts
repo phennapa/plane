@@ -1,127 +1,122 @@
-import { useImperativeHandle, useRef, MutableRefObject, useState, useEffect } from "react";
-import { Selection } from "@tiptap/pm/state";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import { DOMSerializer } from "@tiptap/pm/model";
 import { EditorProps } from "@tiptap/pm/view";
-import { useEditor as useCustomEditor, Editor } from "@tiptap/react";
+import { useEditor as useTiptapEditor, Extensions } from "@tiptap/react";
+import { useImperativeHandle, MutableRefObject, useEffect } from "react";
+import * as Y from "yjs";
 // components
-import { EditorMenuItemNames, getEditorMenuItems } from "@/components/menus";
+import { getEditorMenuItems } from "@/components/menus";
 // extensions
 import { CoreEditorExtensions } from "@/extensions";
 // helpers
+import { getParagraphCount } from "@/helpers/common";
 import { insertContentAtSavedSelection } from "@/helpers/insert-content-at-cursor-position";
-import { IMarking, scrollSummary } from "@/helpers/scroll-to-node";
-// plane editor providers
-import { CollaborationProvider } from "@/plane-editor/providers";
+import { IMarking, scrollSummary, scrollToNodeViaDOMCoordinates } from "@/helpers/scroll-to-node";
 // props
 import { CoreEditorProps } from "@/props";
 // types
-import { DeleteImage, EditorRefApi, IMentionHighlight, IMentionSuggestion, RestoreImage, UploadImage } from "@/types";
-
-export type TFileHandler = {
-  cancel: () => void;
-  delete: DeleteImage;
-  upload: UploadImage;
-  restore: RestoreImage;
-};
+import type {
+  TDocumentEventsServer,
+  EditorRefApi,
+  TEditorCommands,
+  TFileHandler,
+  TExtensions,
+  TMentionHandler,
+} from "@/types";
 
 export interface CustomEditorProps {
-  id?: string;
-  fileHandler: TFileHandler;
-  initialValue?: string;
+  editable: boolean;
   editorClassName: string;
+  editorProps?: EditorProps;
+  enableHistory: boolean;
+  disabledExtensions: TExtensions[];
+  extensions?: Extensions;
+  fileHandler: TFileHandler;
+  forwardedRef?: MutableRefObject<EditorRefApi | null>;
+  handleEditorReady?: (value: boolean) => void;
+  id?: string;
+  initialValue?: string;
+  mentionHandler: TMentionHandler;
+  onChange?: (json: object, html: string) => void;
+  onTransaction?: () => void;
+  autofocus?: boolean;
+  placeholder?: string | ((isFocused: boolean, value: string) => string);
+  provider?: HocuspocusProvider;
+  tabIndex?: number;
   // undefined when prop is not passed, null if intentionally passed to stop
   // swr syncing
   value?: string | null | undefined;
-  provider?: CollaborationProvider;
-  onChange?: (json: object, html: string) => void;
-  extensions?: any;
-  editorProps?: EditorProps;
-  forwardedRef?: MutableRefObject<EditorRefApi | null>;
-  mentionHandler: {
-    highlights: () => Promise<IMentionHighlight[]>;
-    suggestions?: () => Promise<IMentionSuggestion[]>;
-  };
-  handleEditorReady?: (value: boolean) => void;
-  placeholder?: string | ((isFocused: boolean, value: string) => string);
-  tabIndex?: number;
 }
 
-export const useEditor = ({
-  id = "",
-  editorProps = {},
-  initialValue,
-  editorClassName,
-  value,
-  extensions = [],
-  fileHandler,
-  onChange,
-  forwardedRef,
-  tabIndex,
-  handleEditorReady,
-  provider,
-  mentionHandler,
-  placeholder,
-}: CustomEditorProps) => {
-  const editor = useCustomEditor({
-    editorProps: {
-      ...CoreEditorProps(editorClassName),
-      ...editorProps,
-    },
-    extensions: [
-      ...CoreEditorExtensions({
-        mentionConfig: {
-          mentionSuggestions: mentionHandler.suggestions ?? (() => Promise.resolve<IMentionSuggestion[]>([])),
-          mentionHighlights: mentionHandler.highlights ?? [],
-        },
-        fileConfig: {
-          uploadFile: fileHandler.upload,
-          deleteFile: fileHandler.delete,
-          restoreFile: fileHandler.restore,
-          cancelUploadImage: fileHandler.cancel,
-        },
-        placeholder,
-        tabIndex,
-      }),
-      ...extensions,
-    ],
-    content: typeof initialValue === "string" && initialValue.trim() !== "" ? initialValue : "<p></p>",
-    onCreate: async () => {
-      handleEditorReady?.(true);
-    },
-    onTransaction: async ({ editor }) => {
-      setSavedSelection(editor.state.selection);
-    },
-    onUpdate: async ({ editor }) => {
-      onChange?.(editor.getJSON(), editor.getHTML());
-    },
-    onDestroy: async () => {
-      handleEditorReady?.(false);
-    },
-  });
+export const useEditor = (props: CustomEditorProps) => {
+  const {
+    disabledExtensions,
+    editable = true,
+    editorClassName,
+    editorProps = {},
+    enableHistory,
+    extensions = [],
+    fileHandler,
+    forwardedRef,
+    handleEditorReady,
+    id = "",
+    initialValue,
+    mentionHandler,
+    onChange,
+    onTransaction,
+    placeholder,
+    tabIndex,
+    value,
+    provider,
+    autofocus = false,
+  } = props;
 
-  const editorRef: MutableRefObject<Editor | null> = useRef(null);
-
-  const [savedSelection, setSavedSelection] = useState<Selection | null>(null);
-
-  // Inside your component or hook
-  const savedSelectionRef = useRef(savedSelection);
-
-  // Update the ref whenever savedSelection changes
-  useEffect(() => {
-    savedSelectionRef.current = savedSelection;
-  }, [savedSelection]);
+  const editor = useTiptapEditor(
+    {
+      editable,
+      immediatelyRender: false,
+      shouldRerenderOnTransaction: false,
+      autofocus,
+      editorProps: {
+        ...CoreEditorProps({
+          editorClassName,
+        }),
+        ...editorProps,
+      },
+      extensions: [
+        ...CoreEditorExtensions({
+          editable,
+          disabledExtensions,
+          enableHistory,
+          fileHandler,
+          mentionHandler,
+          placeholder,
+          tabIndex,
+        }),
+        ...extensions,
+      ],
+      content: typeof initialValue === "string" && initialValue.trim() !== "" ? initialValue : "<p></p>",
+      onCreate: () => handleEditorReady?.(true),
+      onTransaction: () => {
+        onTransaction?.();
+      },
+      onUpdate: ({ editor }) => onChange?.(editor.getJSON(), editor.getHTML()),
+      onDestroy: () => handleEditorReady?.(false),
+    },
+    [editable]
+  );
 
   // Effect for syncing SWR data
   useEffect(() => {
     // value is null when intentionally passed where syncing is not yet
     // supported and value is undefined when the data from swr is not populated
-    if (value === null || value === undefined) return;
-    if (editor && !editor.isDestroyed && !editor.storage.image.uploadInProgress) {
+    if (value == null) return;
+    if (editor && !editor.isDestroyed && !editor.storage.imageComponent.uploadInProgress) {
       try {
         editor.commands.setContent(value, false, { preserveWhitespace: "full" });
-        const currentSavedSelection = savedSelectionRef.current;
-        if (currentSavedSelection) {
+        if (editor.state.selection) {
           const docLength = editor.state.doc.content.size;
-          const relativePosition = Math.min(currentSavedSelection.from, docLength - 1);
+          const relativePosition = Math.min(editor.state.selection.from, docLength - 1);
           editor.commands.setTextSelection(relativePosition);
         }
       } catch (error) {
@@ -133,86 +128,102 @@ export const useEditor = ({
   useImperativeHandle(
     forwardedRef,
     () => ({
-      clearEditor: () => {
-        editorRef.current?.commands.clearContent();
+      blur: () => editor.commands.blur(),
+      scrollToNodeViaDOMCoordinates(behavior?: ScrollBehavior, pos?: number) {
+        const resolvedPos = pos ?? editor.state.selection.from;
+        if (!editor || !resolvedPos) return;
+        scrollToNodeViaDOMCoordinates(editor, resolvedPos, behavior);
+      },
+      getCurrentCursorPosition: () => editor.state.selection.from,
+      clearEditor: (emitUpdate = false) => {
+        editor?.chain().setMeta("skipImageDeletion", true).clearContent(emitUpdate).run();
       },
       setEditorValue: (content: string) => {
-        editorRef.current?.commands.setContent(content);
+        editor?.commands.setContent(content, false, { preserveWhitespace: "full" });
       },
       setEditorValueAtCursorPosition: (content: string) => {
-        if (savedSelection) {
-          insertContentAtSavedSelection(editorRef, content, savedSelection);
+        if (editor.state.selection) {
+          insertContentAtSavedSelection(editor, content);
         }
       },
-      executeMenuItemCommand: (itemName: EditorMenuItemNames) => {
-        const editorItems = getEditorMenuItems(editorRef.current, fileHandler.upload);
+      executeMenuItemCommand: (props) => {
+        const { itemKey } = props;
+        const editorItems = getEditorMenuItems(editor);
 
-        const getEditorMenuItem = (itemName: EditorMenuItemNames) => editorItems.find((item) => item.key === itemName);
+        const getEditorMenuItem = (itemKey: TEditorCommands) => editorItems.find((item) => item.key === itemKey);
 
-        const item = getEditorMenuItem(itemName);
+        const item = getEditorMenuItem(itemKey);
         if (item) {
-          if (item.key === "image") {
-            item.command(savedSelectionRef.current);
-          } else {
-            item.command();
-          }
+          item.command(props);
         } else {
-          console.warn(`No command found for item: ${itemName}`);
+          console.warn(`No command found for item: ${itemKey}`);
         }
       },
-      isMenuItemActive: (itemName: EditorMenuItemNames): boolean => {
-        const editorItems = getEditorMenuItems(editorRef.current, fileHandler.upload);
+      isMenuItemActive: (props) => {
+        const { itemKey } = props;
+        const editorItems = getEditorMenuItems(editor);
 
-        const getEditorMenuItem = (itemName: EditorMenuItemNames) => editorItems.find((item) => item.key === itemName);
-        const item = getEditorMenuItem(itemName);
-        return item ? item.isActive() : false;
+        const getEditorMenuItem = (itemKey: TEditorCommands) => editorItems.find((item) => item.key === itemKey);
+        const item = getEditorMenuItem(itemKey);
+        if (!item) return false;
+
+        return item.isActive(props);
       },
-      onStateChange: (callback: () => void) => {
-        // Subscribe to editor state changes
-        editorRef.current?.on("transaction", () => {
-          callback();
+      onHeadingChange: (callback: (headings: IMarking[]) => void) => {
+        // Subscribe to update event emitted from headers extension
+        editor?.on("update", () => {
+          callback(editor?.storage.headingList.headings);
         });
         // Return a function to unsubscribe to the continuous transactions of
         // the editor on unmounting the component that has subscribed to this
         // method
         return () => {
-          editorRef.current?.off("transaction");
+          editor?.off("update");
+        };
+      },
+      getHeadings: () => editor?.storage.headingList.headings,
+      onStateChange: (callback: () => void) => {
+        // Subscribe to editor state changes
+        editor?.on("transaction", () => {
+          callback();
+        });
+
+        // Return a function to unsubscribe to the continuous transactions of
+        // the editor on unmounting the component that has subscribed to this
+        // method
+        return () => {
+          editor?.off("transaction");
         };
       },
       getMarkDown: (): string => {
-        const markdownOutput = editorRef.current?.storage.markdown.getMarkdown();
+        const markdownOutput = editor?.storage.markdown.getMarkdown();
         return markdownOutput;
       },
-      getHTML: (): string => {
-        const htmlOutput = editorRef.current?.getHTML() ?? "<p></p>";
-        return htmlOutput;
+      getDocument: () => {
+        const documentBinary = provider?.document ? Y.encodeStateAsUpdate(provider?.document) : null;
+        const documentHTML = editor?.getHTML() ?? "<p></p>";
+        const documentJSON = editor?.getJSON() ?? null;
+
+        return {
+          binary: documentBinary,
+          html: documentHTML,
+          json: documentJSON,
+        };
       },
       scrollSummary: (marking: IMarking): void => {
-        if (!editorRef.current) return;
-        scrollSummary(editorRef.current, marking);
+        if (!editor) return;
+        scrollSummary(editor, marking);
       },
-      setSynced: () => {
-        if (provider) {
-          provider.setSynced();
-        }
-      },
-      hasUnsyncedChanges: () => {
-        if (provider) {
-          return provider.hasUnsyncedChanges();
-        } else {
-          return false;
-        }
-      },
-      isEditorReadyToDiscard: () => editorRef.current?.storage.image.uploadInProgress === false,
+      isEditorReadyToDiscard: () => editor?.storage.imageComponent.uploadInProgress === false,
       setFocusAtPosition: (position: number) => {
-        if (!editorRef.current || editorRef.current.isDestroyed) {
+        if (!editor || editor.isDestroyed) {
           console.error("Editor reference is not available or has been destroyed.");
           return;
         }
         try {
-          const docSize = editorRef.current.state.doc.content.size;
+          const docSize = editor.state.doc.content.size;
           const safePosition = Math.max(0, Math.min(position, docSize));
-          editorRef.current
+          editor
             .chain()
             .insertContentAt(safePosition, [{ type: "paragraph" }])
             .focus()
@@ -221,17 +232,58 @@ export const useEditor = ({
           console.error("An error occurred while setting focus at position:", error);
         }
       },
+      getSelectedText: () => {
+        if (!editor) return null;
+
+        const { state } = editor;
+        const { from, to, empty } = state.selection;
+
+        if (empty) return null;
+
+        const nodesArray: string[] = [];
+        state.doc.nodesBetween(from, to, (node, _pos, parent) => {
+          if (parent === state.doc && editor) {
+            const serializer = DOMSerializer.fromSchema(editor.schema);
+            const dom = serializer.serializeNode(node);
+            const tempDiv = document.createElement("div");
+            tempDiv.appendChild(dom);
+            nodesArray.push(tempDiv.innerHTML);
+          }
+        });
+        const selection = nodesArray.join("");
+        return selection;
+      },
+      insertText: (contentHTML, insertOnNextLine) => {
+        if (!editor) return;
+        const { from, to, empty } = editor.state.selection;
+        if (empty) return;
+        if (insertOnNextLine) {
+          // move cursor to the end of the selection and insert a new line
+          editor.chain().focus().setTextSelection(to).insertContent("<br />").insertContent(contentHTML).run();
+        } else {
+          // replace selected text with the content provided
+          editor.chain().focus().deleteRange({ from, to }).insertContent(contentHTML).run();
+        }
+      },
+      getDocumentInfo: () => ({
+        characters: editor?.storage?.characterCount?.characters?.() ?? 0,
+        paragraphs: getParagraphCount(editor?.state),
+        words: editor?.storage?.characterCount?.words?.() ?? 0,
+      }),
+      setProviderDocument: (value) => {
+        const document = provider?.document;
+        if (!document) return;
+        Y.applyUpdate(document, value);
+      },
+      emitRealTimeUpdate: (message: TDocumentEventsServer) => provider?.sendStateless(message),
+      listenToRealTimeUpdate: () => provider && { on: provider.on.bind(provider), off: provider.off.bind(provider) },
     }),
-    [editorRef, savedSelection, fileHandler.upload]
+    [editor]
   );
 
   if (!editor) {
     return null;
   }
-
-  // the editorRef is used to access the editor instance from outside the hook
-  // and should only be used after editor is initialized
-  editorRef.current = editor;
 
   return editor;
 };

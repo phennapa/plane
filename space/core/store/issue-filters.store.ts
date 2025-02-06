@@ -3,8 +3,9 @@ import isEqual from "lodash/isEqual";
 import set from "lodash/set";
 import { action, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
-// constants
-import { ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@/constants/issue";
+// plane internal
+import { ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@plane/constants";
+import { IssuePaginationOptions, TIssueParams } from "@plane/types";
 // store
 import { CoreRootStore } from "@/store/root.store";
 // types
@@ -15,6 +16,7 @@ import {
   TIssueQueryFiltersParams,
   TIssueFilterKeys,
 } from "@/types/issue";
+import { getPaginationParams } from "./helpers/filter.helpers";
 
 export interface IIssueFilterStore {
   // observables
@@ -27,13 +29,20 @@ export interface IIssueFilterStore {
   getAppliedFilters: (anchor: string) => TIssueQueryFiltersParams | undefined;
   // actions
   updateLayoutOptions: (layout: TIssueLayoutOptions) => void;
-  initIssueFilters: (anchor: string, filters: TIssueFilters) => void;
+  initIssueFilters: (anchor: string, filters: TIssueFilters, shouldFetchIssues?: boolean) => void;
   updateIssueFilters: <K extends keyof TIssueFilters>(
     anchor: string,
     filterKind: K,
     filterKey: keyof TIssueFilters[K],
     filters: TIssueFilters[K][typeof filterKey]
   ) => Promise<void>;
+  getFilterParams: (
+    options: IssuePaginationOptions,
+    anchor: string,
+    cursor: string | undefined,
+    groupId: string | undefined,
+    subGroupId: string | undefined
+  ) => Partial<Record<TIssueParams, string | boolean>>;
 }
 
 export class IssueFilterStore implements IIssueFilterStore {
@@ -65,14 +74,12 @@ export class IssueFilterStore implements IIssueFilterStore {
 
     Object.keys(filters).map((key) => {
       const currentFilterKey = key as TIssueFilterKeys;
+      const filterValue = filters[currentFilterKey] as any;
 
-      if (filters[currentFilterKey] != undefined && filteredParams.includes(currentFilterKey)) {
-        if (Array.isArray(filters[currentFilterKey]))
-          computedFilters[currentFilterKey] = filters[currentFilterKey]?.join(",");
-        else if (filters[currentFilterKey] && typeof filters[currentFilterKey] === "string")
-          computedFilters[currentFilterKey] = filters[currentFilterKey]?.toString();
-        else if (typeof filters[currentFilterKey] === "boolean")
-          computedFilters[currentFilterKey] = filters[currentFilterKey]?.toString();
+      if (filterValue !== undefined && filteredParams.includes(currentFilterKey)) {
+        if (Array.isArray(filterValue)) computedFilters[currentFilterKey] = filterValue.join(",");
+        else if (typeof filterValue === "string" || typeof filterValue === "boolean")
+          computedFilters[currentFilterKey] = filterValue.toString();
       }
     });
 
@@ -114,13 +121,26 @@ export class IssueFilterStore implements IIssueFilterStore {
   // actions
   updateLayoutOptions = (options: TIssueLayoutOptions) => set(this, ["layoutOptions"], options);
 
-  initIssueFilters = async (anchor: string, initFilters: TIssueFilters) => {
+  initIssueFilters = async (anchor: string, initFilters: TIssueFilters, shouldFetchIssues: boolean = false) => {
     if (this.filters === undefined) runInAction(() => (this.filters = {}));
     if (this.filters && initFilters) set(this.filters, [anchor], initFilters);
 
-    const appliedFilters = this.getAppliedFilters(anchor);
-    await this.store.issue.fetchPublicIssues(anchor, appliedFilters);
+    if (shouldFetchIssues) await this.store.issue.fetchPublicIssuesWithExistingPagination(anchor, "mutation");
   };
+
+  getFilterParams = computedFn(
+    (
+      options: IssuePaginationOptions,
+      anchor: string,
+      cursor: string | undefined,
+      groupId: string | undefined,
+      subGroupId: string | undefined
+    ) => {
+      const filterParams = this.getAppliedFilters(anchor);
+      const paginationParams = getPaginationParams(filterParams, options, cursor, groupId, subGroupId);
+      return paginationParams;
+    }
+  );
 
   updateIssueFilters = async <K extends keyof TIssueFilters>(
     anchor: string,
@@ -135,7 +155,6 @@ export class IssueFilterStore implements IIssueFilterStore {
       if (this.filters) set(this.filters, [anchor, filterKind, filterKey], filterValue);
     });
 
-    const appliedFilters = this.getAppliedFilters(anchor);
-    await this.store.issue.fetchPublicIssues(anchor, appliedFilters);
+    if (filterKey !== "layout") await this.store.issue.fetchPublicIssuesWithExistingPagination(anchor, "mutation");
   };
 }

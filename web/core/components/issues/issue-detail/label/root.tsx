@@ -2,14 +2,17 @@
 
 import { FC, useMemo } from "react";
 import { observer } from "mobx-react";
-import { IIssueLabel, TIssue } from "@plane/types";
+import { EIssueServiceType } from "@plane/constants";
+import { IIssueLabel, TIssue, TIssueServiceType } from "@plane/types";
 // components
 import { TOAST_TYPE, setToast } from "@plane/ui";
 // hooks
 import { useIssueDetail, useLabel, useProjectInbox } from "@/hooks/store";
 // ui
 // types
-import { LabelList, LabelCreate, IssueLabelSelectRoot } from "./";
+import { LabelList, IssueLabelSelectRoot } from "./";
+// TODO: Fix this import statement, as core should not import from ee
+// eslint-disable-next-line import/order
 
 export type TIssueLabel = {
   workspaceSlug: string;
@@ -18,6 +21,7 @@ export type TIssueLabel = {
   disabled: boolean;
   isInboxIssue?: boolean;
   onLabelUpdate?: (labelIds: string[]) => void;
+  issueServiceType?: TIssueServiceType;
 };
 
 export type TLabelOperations = {
@@ -26,13 +30,21 @@ export type TLabelOperations = {
 };
 
 export const IssueLabel: FC<TIssueLabel> = observer((props) => {
-  const { workspaceSlug, projectId, issueId, disabled = false, isInboxIssue = false, onLabelUpdate } = props;
+  const {
+    workspaceSlug,
+    projectId,
+    issueId,
+    disabled = false,
+    isInboxIssue = false,
+    onLabelUpdate,
+    issueServiceType = EIssueServiceType.ISSUES,
+  } = props;
   // hooks
-  const { updateIssue } = useIssueDetail();
+  const { updateIssue } = useIssueDetail(issueServiceType);
   const { createLabel } = useLabel();
   const {
     issue: { getIssueById },
-  } = useIssueDetail();
+  } = useIssueDetail(issueServiceType);
   const { getIssueInboxByIssueId } = useProjectInbox();
 
   const issue = isInboxIssue ? getIssueInboxByIssueId(issueId)?.issue : getIssueById(issueId);
@@ -62,12 +74,16 @@ export const IssueLabel: FC<TIssueLabel> = observer((props) => {
             });
           return labelResponse;
         } catch (error) {
+          let errMessage = "Label creation failed";
+          if (error && (error as any).error === "Label with the same name already exists in the project")
+            errMessage = "Label already exists";
+
           setToast({
             title: "Error!",
             type: TOAST_TYPE.ERROR,
-            message: "Label creation failed",
+            message: errMessage,
           });
-          return error;
+          throw error;
         }
       },
     }),
@@ -87,16 +103,6 @@ export const IssueLabel: FC<TIssueLabel> = observer((props) => {
 
       {!disabled && (
         <IssueLabelSelectRoot
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          issueId={issueId}
-          values={issue?.label_ids || []}
-          labelOperations={labelOperations}
-        />
-      )}
-
-      {!disabled && (
-        <LabelCreate
           workspaceSlug={workspaceSlug}
           projectId={projectId}
           issueId={issueId}

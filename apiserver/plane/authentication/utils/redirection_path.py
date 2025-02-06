@@ -3,7 +3,7 @@ from plane.db.models import Profile, Workspace, WorkspaceMemberInvite
 
 def get_redirection_path(user):
     # Handle redirections
-    profile = Profile.objects.get(user=user)
+    profile, _ = Profile.objects.get_or_create(user=user)
 
     # Redirect to onboarding if the user is not onboarded yet
     if not profile.is_onboarded:
@@ -27,8 +27,7 @@ def get_redirection_path(user):
 
     fallback_workspace = (
         Workspace.objects.filter(
-            workspace_member__member_id=user.id,
-            workspace_member__is_active=True,
+            workspace_member__member_id=user.id, workspace_member__is_active=True
         )
         .order_by("created_at")
         .first()

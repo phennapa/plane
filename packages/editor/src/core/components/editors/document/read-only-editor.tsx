@@ -1,64 +1,81 @@
 import { forwardRef, MutableRefObject } from "react";
 // components
 import { PageRenderer } from "@/components/editors";
+// constants
+import { DEFAULT_DISPLAY_CONFIG } from "@/constants/config";
 // extensions
 import { IssueWidget } from "@/extensions";
 // helpers
 import { getEditorClassNames } from "@/helpers/common";
 // hooks
 import { useReadOnlyEditor } from "@/hooks/use-read-only-editor";
-// plane web types
-import { TEmbedConfig } from "@/plane-editor/types";
 // types
-import { EditorReadOnlyRefApi, IMentionHighlight } from "@/types";
+import { EditorReadOnlyRefApi, TDisplayConfig, TExtensions, TFileHandler, TReadOnlyMentionHandler } from "@/types";
 
 interface IDocumentReadOnlyEditor {
+  disabledExtensions: TExtensions[];
+  id: string;
   initialValue: string;
   containerClassName: string;
+  displayConfig?: TDisplayConfig;
   editorClassName?: string;
-  embedHandler: TEmbedConfig;
+  embedHandler: any;
+  fileHandler: Pick<TFileHandler, "getAssetSrc">;
   tabIndex?: number;
   handleEditorReady?: (value: boolean) => void;
-  mentionHandler: {
-    highlights: () => Promise<IMentionHighlight[]>;
-  };
+  mentionHandler: TReadOnlyMentionHandler;
   forwardedRef?: React.MutableRefObject<EditorReadOnlyRefApi | null>;
 }
 
 const DocumentReadOnlyEditor = (props: IDocumentReadOnlyEditor) => {
   const {
     containerClassName,
+    disabledExtensions,
+    displayConfig = DEFAULT_DISPLAY_CONFIG,
     editorClassName = "",
     embedHandler,
-    initialValue,
+    fileHandler,
+    id,
     forwardedRef,
-    tabIndex,
     handleEditorReady,
+    initialValue,
     mentionHandler,
   } = props;
+  const extensions = [];
+  if (embedHandler?.issue) {
+    extensions.push(
+      IssueWidget({
+        widgetCallback: embedHandler.issue.widgetCallback,
+      })
+    );
+  }
+
   const editor = useReadOnlyEditor({
-    initialValue,
+    disabledExtensions,
     editorClassName,
-    mentionHandler,
+    extensions,
+    fileHandler,
     forwardedRef,
     handleEditorReady,
-    extensions: [
-      embedHandler?.issue &&
-        IssueWidget({
-          widgetCallback: embedHandler?.issue.widgetCallback,
-        }),
-    ],
+    initialValue,
+    mentionHandler,
   });
-
-  if (!editor) {
-    return null;
-  }
 
   const editorContainerClassName = getEditorClassNames({
     containerClassName,
   });
 
-  return <PageRenderer tabIndex={tabIndex} editor={editor} editorContainerClassName={editorContainerClassName} />;
+  if (!editor) return null;
+
+  return (
+    <PageRenderer
+      bubbleMenuEnabled={false}
+      displayConfig={displayConfig}
+      editor={editor}
+      editorContainerClassName={editorContainerClassName}
+      id={id}
+    />
+  );
 };
 
 const DocumentReadOnlyEditorWithRef = forwardRef<EditorReadOnlyRefApi, IDocumentReadOnlyEditor>((props, ref) => (

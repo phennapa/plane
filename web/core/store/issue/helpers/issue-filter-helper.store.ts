@@ -1,5 +1,12 @@
 import isEmpty from "lodash/isEmpty";
-// types
+// plane constants
+import {
+  EIssueGroupByToServerOptions,
+  EServerGroupByToFilterOptions,
+  EIssueLayoutTypes,
+  EIssuesStoreType,
+  EIssueFilterType,
+} from "@plane/constants";
 import {
   IIssueDisplayFilterOptions,
   IIssueDisplayProperties,
@@ -11,17 +18,12 @@ import {
   TIssueParams,
   TStaticViewTypes,
 } from "@plane/types";
-// constants
-import {
-  EIssueFilterType,
-  EIssuesStoreType,
-  EIssueGroupByToServerOptions,
-  EServerGroupByToFilterOptions,
-} from "@/constants/issue";
 // helpers
 import { getComputedDisplayFilters, getComputedDisplayProperties } from "@/helpers/issue.helper";
 // lib
 import { storage } from "@/lib/local-storage";
+// plane-web
+import { ENABLE_ISSUE_DEPENDENCIES } from "@/plane-web/constants";
 
 interface ILocalStoreIssueFilters {
   key: EIssuesStoreType;
@@ -95,7 +97,9 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
       start_date: filters?.start_date || undefined,
       target_date: filters?.target_date || undefined,
       project: filters?.project || undefined,
+      team_project: filters?.team_project || undefined,
       subscriber: filters?.subscriber || undefined,
+      issue_type: filters?.issue_type || undefined,
       // display filters
       group_by: displayFilters?.group_by ? EIssueGroupByToServerOptions[displayFilters.group_by] : undefined,
       sub_group_by: displayFilters?.sub_group_by
@@ -116,6 +120,11 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
           ? nonEmptyArrayValue.join(",")
           : nonEmptyArrayValue;
     });
+
+    if (displayFilters?.layout) issueFiltersParams.layout = displayFilters?.layout;
+
+    if (ENABLE_ISSUE_DEPENDENCIES && displayFilters.layout === EIssueLayoutTypes.GANTT)
+      issueFiltersParams["expand"] = "issue_relation,issue_related";
 
     return issueFiltersParams;
   };
@@ -138,7 +147,9 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
     start_date: filters?.start_date || null,
     target_date: filters?.target_date || null,
     project: filters?.project || null,
+    team_project: filters?.team_project || null,
     subscriber: filters?.subscriber || null,
+    issue_type: filters?.issue_type || null,
   });
 
   /**
@@ -250,7 +261,7 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
             [filterType]: filters[filterType],
           },
         };
-
+      // All group_by "filters" are stored in a single array, will cause inconsistency in case of duplicated values
       storage.set("issue_local_filters", JSON.stringify(storageFilters));
     },
   };
@@ -262,6 +273,20 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
    */
   getShouldReFetchIssues = (displayFilters: IIssueDisplayFilterOptions) => {
     const NON_SERVER_DISPLAY_FILTERS = ["order_by", "sub_issue", "type"];
+    const displayFilterKeys = Object.keys(displayFilters);
+
+    return NON_SERVER_DISPLAY_FILTERS.some((serverDisplayfilter: string) =>
+      displayFilterKeys.includes(serverDisplayfilter)
+    );
+  };
+
+  /**
+   * This Method returns true if the display properties changed requires a server side update
+   * @param displayFilters
+   * @returns
+   */
+  getShouldClearIssues = (displayFilters: IIssueDisplayFilterOptions) => {
+    const NON_SERVER_DISPLAY_FILTERS = ["layout"];
     const displayFilterKeys = Object.keys(displayFilters);
 
     return NON_SERVER_DISPLAY_FILTERS.some((serverDisplayfilter: string) =>

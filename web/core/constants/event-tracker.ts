@@ -8,6 +8,8 @@ export type IssueEventProps = {
 export type EventProps = {
   eventName: string;
   payload: any;
+  updates?: any;
+  path?: string;
 };
 
 export const getWorkspaceEventPayload = (payload: any) => ({
@@ -206,7 +208,7 @@ export const PRODUCT_TOUR_COMPLETED = "Product tour completed";
 export const PRODUCT_TOUR_SKIPPED = "Product tour skipped";
 // Dashboard Events
 export const CHANGELOG_REDIRECTED = "Changelog redirected";
-export const GITHUB_REDIRECTED = "Github redirected";
+export const GITHUB_REDIRECTED = "GitHub redirected";
 // Sidebar Events
 export const SIDEBAR_CLICKED = "Sidenav clicked";
 // Global View Events
@@ -229,3 +231,5 @@ export const GROUP_WORKSPACE = "Workspace_metrics";
 export const E_ONBOARDING = "Onboarding";
 export const E_ONBOARDING_STEP_1 = "Onboarding step 1";
 export const E_ONBOARDING_STEP_2 = "Onboarding step 2";
+// Favorites
+export const FAVORITE_ADDED = "Favorite added";

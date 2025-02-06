@@ -67,10 +67,12 @@ class BaseSerializer(serializers.ModelSerializer):
                     # Import all the expandable serializers
                     from . import (
                         IssueSerializer,
+                        IssueLiteSerializer,
                         ProjectLiteSerializer,
                         StateLiteSerializer,
                         UserLiteSerializer,
                         WorkspaceLiteSerializer,
+                        EstimatePointSerializer,
                     )
 
                     # Expansion mapper
@@ -86,6 +88,8 @@ class BaseSerializer(serializers.ModelSerializer):
                         "actor": UserLiteSerializer,
                         "owned_by": UserLiteSerializer,
                         "members": UserLiteSerializer,
+                        "parent": IssueLiteSerializer,
+                        "estimate_point": EstimatePointSerializer,
                     }
                     # Check if field in expansion  then expand the field
                     if expand in expansion:
@@ -100,8 +104,6 @@ class BaseSerializer(serializers.ModelSerializer):
                         response[expand] = exp_serializer.data
                     else:
                         # You might need to handle this case differently
-                        response[expand] = getattr(
-                            instance, f"{expand}_id", None
-                        )
+                        response[expand] = getattr(instance, f"{expand}_id", None)
 
         return response

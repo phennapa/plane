@@ -1,10 +1,11 @@
-import { Fragment, ReactNode, useRef, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { usePopper } from "react-popper";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Briefcase, Check, ChevronDown, Search } from "lucide-react";
 import { Combobox } from "@headlessui/react";
-// types
-import { IProject } from "@plane/types";
+// ui
+import { useTranslation } from "@plane/i18n";
+import { ComboDropDown } from "@plane/ui";
 // components
 import { Logo } from "@/components/common";
 // helpers
@@ -12,6 +13,8 @@ import { cn } from "@/helpers/common.helper";
 // hooks
 import { useProject } from "@/hooks/store";
 import { useDropdown } from "@/hooks/use-dropdown";
+// plane web types
+import { TProject } from "@/plane-web/types";
 // components
 import { DropdownButton } from "./buttons";
 // constants
@@ -23,11 +26,21 @@ type Props = TDropdownProps & {
   button?: ReactNode;
   dropdownArrow?: boolean;
   dropdownArrowClassName?: string;
-  onChange: (val: string) => void;
   onClose?: () => void;
-  renderCondition?: (project: IProject) => boolean;
-  value: string | null;
-};
+  renderCondition?: (project: TProject) => boolean;
+  renderByDefault?: boolean;
+} & (
+    | {
+        multiple: false;
+        onChange: (val: string) => void;
+        value: string | null;
+      }
+    | {
+        multiple: true;
+        onChange: (val: string[]) => void;
+        value: string[];
+      }
+  );
 
 export const ProjectDropdown: React.FC<Props> = observer((props) => {
   const {
@@ -40,6 +53,7 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
     dropdownArrow = false,
     dropdownArrowClassName = "",
     hideIcon = false,
+    multiple,
     onChange,
     onClose,
     placeholder = "Project",
@@ -48,6 +62,7 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
     showTooltip = false,
     tabIndex,
     value,
+    renderByDefault = true,
   } = props;
   // states
   const [query, setQuery] = useState("");
@@ -72,7 +87,7 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
   });
   // store hooks
   const { joinedProjectIds, getProjectById } = useProject();
-
+  const { t } = useTranslation();
   const options = joinedProjectIds?.map((projectId) => {
     const projectDetails = getProjectById(projectId);
     if (renderCondition && projectDetails && !renderCondition(projectDetails)) return;
@@ -95,8 +110,6 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
   const filteredOptions =
     query === "" ? options : options?.filter((o) => o?.query.toLowerCase().includes(query.toLowerCase()));
 
-  const selectedProject = value ? getProjectById(value) : null;
-
   const { handleClose, handleKeyDown, handleOnClick, searchInputKeyDown } = useDropdown({
     dropdownRef,
     inputRef,
@@ -107,13 +120,97 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
     setQuery,
   });
 
-  const dropdownOnChange = (val: string) => {
+  const dropdownOnChange = (val: string & string[]) => {
     onChange(val);
-    handleClose();
+    if (!multiple) handleClose();
   };
 
+  const getDisplayName = (value: string | string[] | null, placeholder: string = "") => {
+    if (Array.isArray(value)) {
+      const firstProject = getProjectById(value[0]);
+      return value.length ? (value.length === 1 ? firstProject?.name : `${value.length} projects`) : placeholder;
+    } else {
+      return value ? (getProjectById(value)?.name ?? placeholder) : placeholder;
+    }
+  };
+
+  const getProjectIcon = (value: string | string[] | null) => {
+    const renderIcon = (projectDetails: TProject) => (
+      <span className="grid place-items-center flex-shrink-0 h-4 w-4">
+        <Logo logo={projectDetails.logo_props} size={14} />
+      </span>
+    );
+
+    if (Array.isArray(value)) {
+      return (
+        <div className="flex items-center gap-0.5">
+          {value.length > 0 ? (
+            value.map((projectId) => {
+              const projectDetails = getProjectById(projectId);
+              return projectDetails ? renderIcon(projectDetails) : null;
+            })
+          ) : (
+            <Briefcase className="size-3 text-custom-text-300" />
+          )}
+        </div>
+      );
+    } else {
+      const projectDetails = getProjectById(value);
+      return projectDetails ? renderIcon(projectDetails) : null;
+    }
+  };
+
+  const comboButton = (
+    <>
+      {button ? (
+        <button
+          ref={setReferenceElement}
+          type="button"
+          className={cn("clickable block h-full w-full outline-none", buttonContainerClassName)}
+          onClick={handleOnClick}
+          disabled={disabled}
+        >
+          {button}
+        </button>
+      ) : (
+        <button
+          ref={setReferenceElement}
+          type="button"
+          className={cn(
+            "clickable block h-full max-w-full outline-none",
+            {
+              "cursor-not-allowed text-custom-text-200": disabled,
+              "cursor-pointer": !disabled,
+            },
+            buttonContainerClassName
+          )}
+          onClick={handleOnClick}
+          disabled={disabled}
+        >
+          <DropdownButton
+            className={buttonClassName}
+            isActive={isOpen}
+            tooltipHeading="Project"
+            tooltipContent={value?.length ? `${value.length} project${value.length !== 1 ? "s" : ""}` : placeholder}
+            showTooltip={showTooltip}
+            variant={buttonVariant}
+            renderToolTipByDefault={renderByDefault}
+          >
+            {!hideIcon && getProjectIcon(value)}
+            {BUTTON_VARIANTS_WITH_TEXT.includes(buttonVariant) && (
+              <span className="flex-grow truncate max-w-40">{getDisplayName(value, placeholder)}</span>
+            )}
+            {dropdownArrow && (
+              <ChevronDown className={cn("h-2.5 w-2.5 flex-shrink-0", dropdownArrowClassName)} aria-hidden="true" />
+            )}
+          </DropdownButton>
+        </button>
+      )}
+    </>
+  );
+
   return (
-    <Combobox
+    <ComboDropDown
       as="div"
       ref={dropdownRef}
       tabIndex={tabIndex}
@@ -122,54 +219,10 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
       onChange={dropdownOnChange}
       disabled={disabled}
       onKeyDown={handleKeyDown}
+      button={comboButton}
+      renderByDefault={renderByDefault}
+      multiple={multiple}
     >
-      <Combobox.Button as={Fragment}>
-        {button ? (
-          <button
-            ref={setReferenceElement}
-            type="button"
-            className={cn("clickable block h-full w-full outline-none", buttonContainerClassName)}
-            onClick={handleOnClick}
-          >
-            {button}
-          </button>
-        ) : (
-          <button
-            ref={setReferenceElement}
-            type="button"
-            className={cn(
-              "clickable block h-full max-w-full outline-none",
-              {
-                "cursor-not-allowed text-custom-text-200": disabled,
-                "cursor-pointer": !disabled,
-              },
-              buttonContainerClassName
-            )}
-            onClick={handleOnClick}
-          >
-            <DropdownButton
-              className={buttonClassName}
-              isActive={isOpen}
-              tooltipHeading="Project"
-              tooltipContent={selectedProject?.name ?? placeholder}
-              showTooltip={showTooltip}
-              variant={buttonVariant}
-            >
-              {!hideIcon && selectedProject && (
-                <span className="grid place-items-center flex-shrink-0 h-4 w-4">
-                  <Logo logo={selectedProject.logo_props} size={12} />
-                </span>
-              )}
-              {BUTTON_VARIANTS_WITH_TEXT.includes(buttonVariant) && (
-                <span className="flex-grow truncate max-w-40">{selectedProject?.name ?? placeholder}</span>
-              )}
-              {dropdownArrow && (
-                <ChevronDown className={cn("h-2.5 w-2.5 flex-shrink-0", dropdownArrowClassName)} aria-hidden="true" />
-              )}
-            </DropdownButton>
-          </button>
-        )}
-      </Combobox.Button>
       {isOpen && (
         <Combobox.Options className="fixed z-10" static>
           <div
@@ -186,7 +239,7 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
                 className="w-full bg-transparent py-1 text-xs text-custom-text-200 placeholder:text-custom-text-400 focus:outline-none"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search"
+                placeholder={t("search")}
                 displayValue={(assigned: any) => assigned?.name}
                 onKeyDown={searchInputKeyDown}
               />
@@ -216,15 +269,15 @@ export const ProjectDropdown: React.FC<Props> = observer((props) => {
                     );
                   })
                 ) : (
-                  <p className="text-custom-text-400 italic py-1 px-1.5">No matching results</p>
+                  <p className="text-custom-text-400 italic py-1 px-1.5">{t("no_matching_results")}</p>
                 )
               ) : (
-                <p className="text-custom-text-400 italic py-1 px-1.5">Loading...</p>
+                <p className="text-custom-text-400 italic py-1 px-1.5">{t("loading")}</p>
               )}
             </div>
           </div>
         </Combobox.Options>
       )}
-    </Combobox>
+    </ComboDropDown>
   );
 });

@@ -1,13 +1,13 @@
 // nivo
 import { BarDatum } from "@nivo/bar";
+// plane imports
+import { ANALYTICS_DATE_KEYS } from "@plane/constants";
 import { IAnalyticsData, IAnalyticsParams, IAnalyticsResponse, TStateGroups } from "@plane/types";
-// helpers
-import { DATE_KEYS } from "@/constants/analytics";
+// constants
 import { MONTHS_LIST } from "@/constants/calendar";
 import { STATE_GROUPS } from "@/constants/state";
+// helpers
 import { addSpaceIfCamelCase, capitalizeFirstLetter, generateRandomColor } from "@/helpers/string.helper";
-// types
-// constants
 
 export const convertResponseToBarGraphData = (
   response: IAnalyticsData | undefined,
@@ -33,7 +33,7 @@ export const convertResponseToBarGraphData = (
       });
 
       data.push({
-        name: DATE_KEYS.includes(params.x_axis)
+        name: ANALYTICS_DATE_KEYS.includes(params.x_axis)
           ? renderMonthAndYear(key)
           : params.x_axis === "priority" || params.x_axis === "state__group"
             ? capitalizeFirstLetter(key)
@@ -46,11 +46,11 @@ export const convertResponseToBarGraphData = (
       const item = response[key][0];
 
       data.push({
-        name: DATE_KEYS.includes(params.x_axis)
+        name: ANALYTICS_DATE_KEYS.includes(params.x_axis)
           ? renderMonthAndYear(item.dimension)
           : params.x_axis === "priority" || params.x_axis === "state__group"
             ? capitalizeFirstLetter(item.dimension ?? "None")
-            : item.dimension ?? "None",
+            : (item.dimension ?? "None"),
         [yAxisKey]: item[yAxisKey] ?? 0,
       });
     }
@@ -126,7 +126,7 @@ export const generateDisplayName = (
   if (params[type] === "state_id")
     displayName = analytics?.extras.state_details.find((s) => s.state_id === value)?.state__name ?? "None";
 
-  if (DATE_KEYS.includes(params.segment ?? "")) displayName = renderMonthAndYear(value);
+  if (ANALYTICS_DATE_KEYS.includes(params.segment ?? "")) displayName = renderMonthAndYear(value);
 
   return displayName;
 };
@@ -137,7 +137,7 @@ export const renderMonthAndYear = (date: string | number | null): string => {
   const monthNumber = parseInt(`${date}`.split("-")[1], 10);
   const year = `${date}`.split("-")[0];
 
-  return (MONTHS_LIST[monthNumber]?.shortTitle ?? "None") + ` ${year}` ?? "";
+  return (MONTHS_LIST[monthNumber]?.shortTitle || "None") + ` ${year ? year : ""}`;
 };
 
 export const MAX_CHART_LABEL_LENGTH = 15;

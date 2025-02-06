@@ -4,12 +4,14 @@ import React, { Fragment } from "react";
 import { observer } from "mobx-react";
 import { useSearchParams } from "next/navigation";
 import { Tab } from "@headlessui/react";
+// plane package imports
+import { ANALYTICS_TABS } from "@plane/constants";
+import { Header, EHeaderVariant } from "@plane/ui";
 // components
 import { CustomAnalytics, ScopeAndDemand } from "@/components/analytics";
 import { PageHead } from "@/components/core";
 import { EmptyState } from "@/components/empty-state";
 // constants
-import { ANALYTICS_TABS } from "@/constants/analytics";
 import { EmptyStateType } from "@/constants/empty-state";
 // hooks
 import { useCommandPalette, useEventTracker, useProject, useWorkspace } from "@/hooks/store";
@@ -31,27 +33,29 @@ const AnalyticsPage = observer(() => {
       <PageHead title={pageTitle} />
       {workspaceProjectIds && (
         <>
-          {workspaceProjectIds.length > 0 || loader ? (
+          {workspaceProjectIds.length > 0 || loader === "init-loader" ? (
             <div className="flex h-full flex-col overflow-hidden bg-custom-background-100">
               <Tab.Group as={Fragment} defaultIndex={analytics_tab === "custom" ? 1 : 0}>
-                <Tab.List as="div" className="flex space-x-2 border-b h-[50px] border-custom-border-200 px-0 md:px-5">
-                  {ANALYTICS_TABS.map((tab) => (
-                    <Tab key={tab.key} as={Fragment}>
-                      {({ selected }) => (
-                        <button
-                          className={`text-sm group relative flex items-center gap-1 h-[50px] px-3 cursor-pointer transition-all font-medium outline-none  ${
-                            selected ? "text-custom-primary-100 " : "hover:text-custom-text-200"
-                          }`}
-                        >
-                          {tab.title}
-                          <div
-                            className={`border absolute bottom-0 right-0 left-0 rounded-t-md ${selected ? "border-custom-primary-100" : "border-transparent group-hover:border-custom-border-200"}`}
-                          />
-                        </button>
-                      )}
-                    </Tab>
-                  ))}
-                </Tab.List>
+                <Header variant={EHeaderVariant.SECONDARY}>
+                  <Tab.List as="div" className="flex space-x-2 h-full">
+                    {ANALYTICS_TABS.map((tab) => (
+                      <Tab key={tab.key} as={Fragment}>
+                        {({ selected }) => (
+                          <button
+                            className={`text-sm group relative flex items-center gap-1 h-full px-3 cursor-pointer transition-all font-medium outline-none  ${
+                              selected ? "text-custom-primary-100 " : "hover:text-custom-text-200"
+                            }`}
+                          >
+                            {tab.title}
+                            <div
+                              className={`border absolute bottom-0 right-0 left-0 rounded-t-md ${selected ? "border-custom-primary-100" : "border-transparent group-hover:border-custom-border-200"}`}
+                            />
+                          </button>
+                        )}
+                      </Tab>
+                    ))}
+                  </Tab.List>
+                </Header>
                 <Tab.Panels as={Fragment}>
                   <Tab.Panel as={Fragment}>
                     <ScopeAndDemand fullScreen />

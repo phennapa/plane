@@ -7,7 +7,7 @@ import { action, makeObservable, observable, runInAction } from "mobx";
 // services
 // types
 // helpers
-import { TIssueReaction, TIssueReactionMap, TIssueReactionIdMap } from "@plane/types";
+import { TIssueReaction, TIssueReactionMap, TIssueReactionIdMap, TIssue, TIssueServiceType } from "@plane/types";
 import { groupReactions } from "@/helpers/emoji.helper";
 import { IssueReactionService } from "@/services/issue";
 import { IIssueDetail } from "./root.store";
@@ -44,8 +44,9 @@ export class IssueReactionStore implements IIssueReactionStore {
   rootIssueDetailStore: IIssueDetail;
   // services
   issueReactionService;
+  serviceType;
 
-  constructor(rootStore: IIssueDetail) {
+  constructor(rootStore: IIssueDetail, serviceType: TIssueServiceType) {
     makeObservable(this, {
       // observables
       reactions: observable,
@@ -56,10 +57,11 @@ export class IssueReactionStore implements IIssueReactionStore {
       createReaction: action,
       removeReaction: action,
     });
+    this.serviceType = serviceType;
     // root store
     this.rootIssueDetailStore = rootStore;
     // services
-    this.issueReactionService = new IssueReactionService();
+    this.issueReactionService = new IssueReactionService(serviceType);
   }
 
   // helper methods
@@ -109,37 +111,27 @@ export class IssueReactionStore implements IIssueReactionStore {
 
   // actions
   fetchReactions = async (workspaceSlug: string, projectId: string, issueId: string) => {
-    try {
-      const response = await this.issueReactionService.listIssueReactions(workspaceSlug, projectId, issueId);
-
-      this.addReactions(issueId, response);
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    const response = await this.issueReactionService.listIssueReactions(workspaceSlug, projectId, issueId);
+    this.addReactions(issueId, response);
+    return response;
   };
 
   createReaction = async (workspaceSlug: string, projectId: string, issueId: string, reaction: string) => {
-    try {
-      const response = await this.issueReactionService.createIssueReaction(workspaceSlug, projectId, issueId, {
-        reaction,
-      });
+    const response = await this.issueReactionService.createIssueReaction(workspaceSlug, projectId, issueId, {
+      reaction,
+    });
 
-      runInAction(() => {
-        update(this.reactions, [issueId, reaction], (reactionId) => {
-          if (!reactionId) return [response.id];
-          return concat(reactionId, response.id);
-        });
-        set(this.reactionMap, response.id, response);
+    runInAction(() => {
+      update(this.reactions, [issueId, reaction], (reactionId) => {
+        if (!reactionId) return [response.id];
+        return concat(reactionId, response.id);
       });
+      set(this.reactionMap, response.id, response);
+    });
 
-      // fetching activity
-      this.rootIssueDetailStore.activity.fetchActivities(workspaceSlug, projectId, issueId);
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    // fetching activity
+    this.rootIssueDetailStore.activity.fetchActivities(workspaceSlug, projectId, issueId);
+    return response;
   };
 
   removeReaction = async (
@@ -149,24 +141,20 @@ export class IssueReactionStore implements IIssueReactionStore {
     reaction: string,
     userId: string
   ) => {
-    try {
-      const userReactions = this.reactionsByUser(issueId, userId);
-      const currentReaction = find(userReactions, { actor: userId, reaction: reaction });
+    const userReactions = this.reactionsByUser(issueId, userId);
+    const currentReaction = find(userReactions, { actor: userId, reaction: reaction });
 
-      if (currentReaction && currentReaction.id) {
-        runInAction(() => {
-          pull(this.reactions[issueId][reaction], currentReaction.id);
-          delete this.reactionMap[reaction];
-        });
-      }
-
-      const response = await this.issueReactionService.deleteIssueReaction(workspaceSlug, projectId, issueId, reaction);
-
-      // fetching activity
-      this.rootIssueDetailStore.activity.fetchActivities(workspaceSlug, projectId, issueId);
-      return response;
-    } catch (error) {
-      throw error;
+    if (currentReaction && currentReaction.id) {
+      runInAction(() => {
+        pull(this.reactions[issueId][reaction], currentReaction.id);
+        delete this.reactionMap[reaction];
+      });
     }
+
+    const response = await this.issueReactionService.deleteIssueReaction(workspaceSlug, projectId, issueId, reaction);
+
+    // fetching activity
+    this.rootIssueDetailStore.activity.fetchActivities(workspaceSlug, projectId, issueId);
+    return response;
   };
 }

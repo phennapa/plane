@@ -8,11 +8,14 @@ import { EditorRefApi } from "@plane/editor";
 import { TextArea } from "@plane/ui";
 // helpers
 import { cn } from "@/helpers/common.helper";
+import { getPageName } from "@/helpers/page.helper";
+// hooks
+import { usePageFilters } from "@/hooks/use-page-filters";
 
 type Props = {
   editorRef: React.RefObject<EditorRefApi>;
   readOnly: boolean;
-  title: string;
+  title: string | undefined;
   updateTitle: (title: string) => void;
 };
 
@@ -20,25 +23,32 @@ export const PageEditorTitle: React.FC<Props> = observer((props) => {
   const { editorRef, readOnly, title, updateTitle } = props;
   // states
   const [isLengthVisible, setIsLengthVisible] = useState(false);
+  // page filters
+  const { fontSize } = usePageFilters();
+  // ui
+  const titleClassName = cn("bg-transparent tracking-[-2%] font-bold", {
+    "text-[1.6rem] leading-[1.9rem]": fontSize === "small-font",
+    "text-[2rem] leading-[2.375rem]": fontSize === "large-font",
+  });
 
   return (
-    <>
+    <div className="relative w-full flex-shrink-0 md:pl-5 px-4">
       {readOnly ? (
         <h6
-          className="break-words bg-transparent text-[1.75rem] font-semibold"
-          style={{
-            lineHeight: "1.2",
-          }}
+          className={cn(
+            titleClassName,
+            {
+              "text-custom-text-400": !title,
+            },
+            "break-words pb-1.5"
+          )}
         >
-          {title}
+          {getPageName(title)}
         </h6>
       ) : (
         <>
           <TextArea
-            className="w-full bg-custom-background text-[1.75rem] font-semibold outline-none p-0 border-none resize-none rounded-none"
-            style={{
-              lineHeight: "1.2",
-            }}
+            className={cn(titleClassName, "w-full outline-none p-0 border-none resize-none rounded-none")}
             placeholder="Untitled"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -51,6 +61,7 @@ export const PageEditorTitle: React.FC<Props> = observer((props) => {
             maxLength={255}
             onFocus={() => setIsLengthVisible(true)}
             onBlur={() => setIsLengthVisible(false)}
+            autoFocus
           />
           <div
             className={cn(
@@ -62,15 +73,15 @@ export const PageEditorTitle: React.FC<Props> = observer((props) => {
           >
             <span
               className={cn({
-                "text-red-500": title.length > 255,
+                "text-red-500": title && title.length > 255,
               })}
             >
-              {title.length}
+              {title?.length}
             </span>
             /255
           </div>
         </>
       )}
-    </>
+    </div>
   );
 });

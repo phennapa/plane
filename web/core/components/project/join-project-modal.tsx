@@ -8,7 +8,7 @@ import type { IProject } from "@plane/types";
 // ui
 import { Button } from "@plane/ui";
 // hooks
-import { useProject, useUser } from "@/hooks/store";
+import { useProject, useUserPermissions } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 
 // type
@@ -24,20 +24,18 @@ export const JoinProjectModal: React.FC<TJoinProjectModalProps> = (props) => {
   // states
   const [isJoiningLoading, setIsJoiningLoading] = useState(false);
   // store hooks
-  const {
-    membership: { joinProject },
-  } = useUser();
-  const { fetchProjects } = useProject();
+  const { joinProject } = useUserPermissions();
+  const { fetchProjectDetails } = useProject();
   // router
   const router = useAppRouter();
 
   const handleJoin = () => {
     setIsJoiningLoading(true);
 
-    joinProject(workspaceSlug, [project.id])
+    joinProject(workspaceSlug, project.id)
       .then(() => {
         router.push(`/${workspaceSlug}/projects/${project.id}/issues`);
-        fetchProjects(workspaceSlug);
+        fetchProjectDetails(workspaceSlug, project.id);
         handleClose();
       })
       .finally(() => {

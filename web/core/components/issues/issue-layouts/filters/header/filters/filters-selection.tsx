@@ -2,8 +2,15 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Search, X } from "lucide-react";
-import { IIssueDisplayFilterOptions, IIssueFilterOptions, IIssueLabel, IState } from "@plane/types";
-// hooks
+// types
+import {
+  IIssueDisplayFilterOptions,
+  IIssueFilterOptions,
+  IIssueLabel,
+  ILayoutDisplayFiltersOptions,
+  IState,
+} from "@plane/types";
+// components
 import {
   FilterAssignees,
   FilterMentions,
@@ -17,12 +24,14 @@ import {
   FilterTargetDate,
   FilterCycle,
   FilterModule,
-  FilterIssueType,
+  FilterIssueGrouping,
 } from "@/components/issues";
-import { ILayoutDisplayFiltersOptions } from "@/constants/issue";
-// components
-// types
-// constants
+// hooks
+import { useMember } from "@/hooks/store";
+import { usePlatformOS } from "@/hooks/use-platform-os";
+// plane web components
+import { FilterIssueTypes, FilterTeamProjects } from "@/plane-web/components/issues";
+import { EUserPermissions } from "@/plane-web/constants";
 
 type Props = {
   filters: IIssueFilterOptions;
@@ -30,11 +39,13 @@ type Props = {
   handleDisplayFiltersUpdate?: (updatedDisplayFilter: Partial<IIssueDisplayFilterOptions>) => void;
   handleFiltersUpdate: (key: keyof IIssueFilterOptions, value: string | string[]) => void;
   layoutDisplayFiltersOptions: ILayoutDisplayFiltersOptions | undefined;
+  projectId?: string;
   labels?: IIssueLabel[] | undefined;
   memberIds?: string[] | undefined;
   states?: IState[] | undefined;
   cycleViewDisabled?: boolean;
   moduleViewDisabled?: boolean;
+  isEpic?: boolean;
 };
 
 export const FilterSelection: React.FC<Props> = observer((props) => {
@@ -44,16 +55,32 @@ export const FilterSelection: React.FC<Props> = observer((props) => {
     handleDisplayFiltersUpdate,
     handleFiltersUpdate,
     layoutDisplayFiltersOptions,
+    projectId,
     labels,
     memberIds,
     states,
     cycleViewDisabled = false,
     moduleViewDisabled = false,
+    isEpic = false,
   } = props;
   // hooks
+  const { isMobile } = usePlatformOS();
   const { moduleId, cycleId } = useParams();
+  const {
+    project: { getProjectMemberDetails },
+  } = useMember();
   // states
   const [filtersSearchQuery, setFiltersSearchQuery] = useState("");
+
+  // filter guests from assignees
+  const assigneeIds = memberIds?.filter((id) => {
+    if (projectId) {
+      const memeberDetails = getProjectMemberDetails(id, projectId);
+      const isGuest = (memeberDetails?.role || EUserPermissions.GUEST) === EUserPermissions.GUEST;
+      if (isGuest && memeberDetails) return false;
+    }
+    return true;
+  });
 
   const isFilterEnabled = (filter: keyof IIssueFilterOptions) => layoutDisplayFiltersOptions?.filters.includes(filter);
 
@@ -71,7 +98,7 @@ export const FilterSelection: React.FC<Props> = observer((props) => {
             placeholder="Search"
             value={filtersSearchQuery}
             onChange={(e) => setFiltersSearchQuery(e.target.value)}
-            autoFocus
+            autoFocus={!isMobile}
           />
           {filtersSearchQuery !== "" && (
             <button type="button" className="grid place-items-center" onClick={() => setFiltersSearchQuery("")}>
@@ -115,13 +142,22 @@ export const FilterSelection: React.FC<Props> = observer((props) => {
           </div>
         )}
 
+        {/* issue type */}
+        {isFilterEnabled("issue_type") && (
+          <FilterIssueTypes
+            appliedFilters={filters.issue_type ?? null}
+            handleUpdate={(val) => handleFiltersUpdate("issue_type", val)}
+            searchQuery={filtersSearchQuery}
+          />
+        )}
+
         {/* assignees */}
         {isFilterEnabled("assignees") && (
           <div className="py-2">
             <FilterAssignees
               appliedFilters={filters.assignees ?? null}
               handleUpdate={(val) => handleFiltersUpdate("assignees", val)}
-              memberIds={memberIds}
+              memberIds={assigneeIds}
               searchQuery={filtersSearchQuery}
             />
           </div>
@@ -195,16 +231,29 @@ export const FilterSelection: React.FC<Props> = observer((props) => {
             />
           </div>
         )}
+
+        {/* team project */}
+        {isFilterEnabled("team_project") && (
+          <div className="py-2">
+            <FilterTeamProjects
+              appliedFilters={filters.team_project ?? null}
+              handleUpdate={(val) => handleFiltersUpdate("team_project", val)}
+              searchQuery={filtersSearchQuery}
+            />
+          </div>
+        )}
+
         {/* issue type */}
         {isDisplayFilterEnabled("type") && displayFilters && handleDisplayFiltersUpdate && (
           <div className="py-2">
-            <FilterIssueType
+            <FilterIssueGrouping
               selectedIssueType={displayFilters.type}
               handleUpdate={(val) =>
                 handleDisplayFiltersUpdate({
                   type: val,
                 })
               }
+              isEpic={isEpic}
             />
           </div>
         )}

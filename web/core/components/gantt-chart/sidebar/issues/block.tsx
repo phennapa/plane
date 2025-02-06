@@ -1,14 +1,14 @@
 import { observer } from "mobx-react";
 // components
+import { Row } from "@plane/ui";
 import { MultipleSelectEntityAction } from "@/components/core";
-import { useGanttChart } from "@/components/gantt-chart/hooks";
 import { IssueGanttSidebarBlock } from "@/components/issues";
 // helpers
 import { cn } from "@/helpers/common.helper";
-import { findTotalDaysInRange } from "@/helpers/date-time.helper";
 // hooks
 import { useIssueDetail } from "@/hooks/store";
 import { TSelectionHelper } from "@/hooks/use-multiple-select";
+import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 // constants
 import { BLOCK_HEIGHT, GANTT_SELECT_GROUP } from "../../constants";
 // types
@@ -19,17 +19,19 @@ type Props = {
   enableSelection: boolean;
   isDragging: boolean;
   selectionHelpers?: TSelectionHelper;
+  isEpic?: boolean;
 };
 
 export const IssuesSidebarBlock = observer((props: Props) => {
-  const { block, enableSelection, isDragging, selectionHelpers } = props;
+  const { block, enableSelection, isDragging, selectionHelpers, isEpic = false } = props;
   // store hooks
-  const { updateActiveBlockId, isBlockActive } = useGanttChart();
+  const { updateActiveBlockId, isBlockActive, getNumberOfDaysFromPosition } = useTimeLineChartStore();
   const { getIsIssuePeeked } = useIssueDetail();
 
-  const duration = findTotalDaysInRange(block.start_date, block.target_date);
+  const isBlockComplete = !!block?.start_date && !!block?.target_date;
+  const duration = isBlockComplete ? getNumberOfDaysFromPosition(block?.position?.width) : undefined;
 
-  if (!block.data) return null;
+  if (!block?.data) return null;
 
   const isIssueSelected = selectionHelpers?.getIsEntitySelected(block.id);
   const isIssueFocused = selectionHelpers?.getIsEntityActive(block.id);
@@ -45,8 +47,8 @@ export const IssuesSidebarBlock = observer((props: Props) => {
       onMouseEnter={() => updateActiveBlockId(block.id)}
       onMouseLeave={() => updateActiveBlockId(null)}
     >
-      <div
-        className={cn("group w-full flex items-center gap-2 pl-2 pr-4", {
+      <Row
+        className={cn("group w-full flex items-center gap-2 pr-4", {
           "bg-custom-background-90": isBlockHoveredOn,
           "bg-custom-primary-100/5 hover:bg-custom-primary-100/10": isIssueSelected,
           "bg-custom-primary-100/10": isIssueSelected && isBlockHoveredOn,
@@ -55,8 +57,8 @@ export const IssuesSidebarBlock = observer((props: Props) => {
           height: `${BLOCK_HEIGHT}px`,
         }}
       >
-        <div className="flex items-center gap-2">
-          {enableSelection && selectionHelpers && (
+        {enableSelection && selectionHelpers && (
+          <div className="flex items-center gap-2 absolute left-1">
             <MultipleSelectEntityAction
               className={cn(
                 "opacity-0 pointer-events-none group-hover/list-block:opacity-100 group-hover/list-block:pointer-events-auto transition-opacity",
@@ -68,11 +70,11 @@ export const IssuesSidebarBlock = observer((props: Props) => {
               id={block.id}
               selectionHelpers={selectionHelpers}
             />
-          )}
-        </div>
+          </div>
+        )}
         <div className="flex h-full flex-grow items-center justify-between gap-2 truncate">
           <div className="flex-grow truncate">
-            <IssueGanttSidebarBlock issueId={block.data.id} />
+            <IssueGanttSidebarBlock issueId={block.data.id} isEpic={isEpic} />
           </div>
           {duration && (
             <div className="flex-shrink-0 text-sm text-custom-text-200">
@@ -82,7 +84,7 @@ export const IssuesSidebarBlock = observer((props: Props) => {
             </div>
           )}
         </div>
-      </div>
+      </Row>
     </div>
   );
 });

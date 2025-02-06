@@ -1,10 +1,9 @@
-import isArray from "lodash/isArray";
 import isEmpty from "lodash/isEmpty";
-import pickBy from "lodash/pickBy";
 import set from "lodash/set";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 // base class
 import { computedFn } from "mobx-utils";
+import { EIssueFilterType, EIssuesStoreType } from "@plane/constants";
 import {
   IIssueFilterOptions,
   IIssueDisplayFilterOptions,
@@ -14,7 +13,6 @@ import {
   TIssueParams,
   IssuePaginationOptions,
 } from "@plane/types";
-import { EIssueFilterType, EIssuesStoreType } from "@/constants/issue";
 import { handleIssueQueryParamsByLayout } from "@/helpers/issue.helper";
 // services
 import { ViewService } from "@/plane-web/services";
@@ -33,6 +31,7 @@ export interface IProjectViewIssuesFilter extends IBaseIssueFilterStore {
     groupId: string | undefined,
     subGroupId: string | undefined
   ) => Partial<Record<TIssueParams, string | boolean>>;
+  getIssueFilters(viewId: string): IIssueFilters | undefined;
   // action
   fetchFilters: (workspaceSlug: string, projectId: string, viewId: string) => Promise<void>;
   updateFilters: (
@@ -188,13 +187,11 @@ export class ProjectViewIssuesFilter extends IssueFilterHelperStore implements I
             });
           });
 
-          const appliedFilters = _filters.filters || {};
-          const filteredFilters = pickBy(appliedFilters, (value) => value && isArray(value) && value.length > 0);
           this.rootIssueStore.projectViewIssues.fetchIssuesWithExistingPagination(
             workspaceSlug,
             projectId,
             viewId,
-            isEmpty(filteredFilters) ? "init-loader" : "mutation"
+            "mutation"
           );
           break;
         }
@@ -231,6 +228,10 @@ export class ProjectViewIssuesFilter extends IssueFilterHelperStore implements I
             });
           });
 
+          if (this.getShouldClearIssues(updatedDisplayFilters)) {
+            this.rootIssueStore.projectIssues.clear(true, true); // clear issues for local store when some filters like layout changes
+          }
+
           if (this.getShouldReFetchIssues(updatedDisplayFilters)) {
             this.rootIssueStore.projectViewIssues.fetchIssuesWithExistingPagination(
               workspaceSlug,
@@ -264,9 +265,16 @@ export class ProjectViewIssuesFilter extends IssueFilterHelperStore implements I
 
           const currentUserId = this.rootIssueStore.currentUserId;
           if (currentUserId)
-            this.handleIssuesLocalFilters.set(EIssuesStoreType.PROJECT, type, workspaceSlug, viewId, currentUserId, {
-              kanban_filters: _filters.kanbanFilters,
-            });
+            this.handleIssuesLocalFilters.set(
+              EIssuesStoreType.PROJECT_VIEW,
+              type,
+              workspaceSlug,
+              viewId,
+              currentUserId,
+              {
+                kanban_filters: _filters.kanbanFilters,
+              }
+            );
 
           runInAction(() => {
             Object.keys(updatedKanbanFilters).forEach((_key) => {

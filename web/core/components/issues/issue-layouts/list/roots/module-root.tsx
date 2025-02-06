@@ -2,15 +2,13 @@ import React from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // mobx store
+import { EIssuesStoreType } from "@plane/constants";
 import { ModuleIssueQuickActions } from "@/components/issues";
-import { EIssuesStoreType } from "@/constants/issue";
 import { useIssues } from "@/hooks/store";
 // components
 // types
 // constants
 import { BaseListRoot } from "../base-list-root";
-
-export interface IModuleListLayout {}
 
 export const ModuleListLayout: React.FC = observer(() => {
   const { workspaceSlug, projectId, moduleId } = useParams();

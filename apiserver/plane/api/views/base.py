@@ -7,6 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import IntegrityError
 from django.urls import resolve
 from django.utils import timezone
+from plane.db.models.api import APIToken
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -16,7 +17,7 @@ from rest_framework.views import APIView
 
 # Module imports
 from plane.api.middleware.api_authentication import APIKeyAuthentication
-from plane.api.rate_limit import ApiKeyRateThrottle
+from plane.api.rate_limit import ApiKeyRateThrottle, ServiceTokenRateThrottle
 from plane.utils.exception_logger import log_exception
 from plane.utils.paginator import BasePaginator
 
@@ -36,22 +37,31 @@ class TimezoneMixin:
 
 
 class BaseAPIView(TimezoneMixin, APIView, BasePaginator):
-    authentication_classes = [
-        APIKeyAuthentication,
-    ]
+    authentication_classes = [APIKeyAuthentication]
 
-    permission_classes = [
-        IsAuthenticated,
-    ]
-
-    throttle_classes = [
-        ApiKeyRateThrottle,
-    ]
+    permission_classes = [IsAuthenticated]
 
     def filter_queryset(self, queryset):
         for backend in list(self.filter_backends):
             queryset = backend().filter_queryset(self.request, queryset, self)
         return queryset
+
+    def get_throttles(self):
+        throttle_classes = []
+        api_key = self.request.headers.get("X-Api-Key")
+
+        if api_key:
+            service_token = APIToken.objects.filter(
+                token=api_key, is_service=True
+            ).first()
+
+            if service_token:
+                throttle_classes.append(ServiceTokenRateThrottle())
+                return throttle_classes
+
+        throttle_classes.append(ApiKeyRateThrottle())
+
+        return throttle_classes
 
     def handle_exception(self, exc):
         """
@@ -108,9 +118,7 @@ class BaseAPIView(TimezoneMixin, APIView, BasePaginator):
 
     def finalize_response(self, request, response, *args, **kwargs):
         # Call super to get the default response
-        response = super().finalize_response(
-            request, response, *args, **kwargs
-        )
+        response = super().finalize_response(request, response, *args, **kwargs)
 
         # Add custom headers if they exist in the request META
         ratelimit_remaining = request.META.get("X-RateLimit-Remaining")
@@ -139,17 +147,13 @@ class BaseAPIView(TimezoneMixin, APIView, BasePaginator):
     @property
     def fields(self):
         fields = [
-            field
-            for field in self.request.GET.get("fields", "").split(",")
-            if field
+            field for field in self.request.GET.get("fields", "").split(",") if field
         ]
         return fields if fields else None
 
     @property
     def expand(self):
         expand = [
-            expand
-            for expand in self.request.GET.get("expand", "").split(",")
-            if expand
+            expand for expand in self.request.GET.get("expand", "").split(",") if expand
         ]
         return expand if expand else None

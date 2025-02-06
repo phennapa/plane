@@ -2,12 +2,12 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Placement } from "@popperjs/core";
-import { DateRange, DayPicker, Matcher } from "react-day-picker";
+import { DateRange, DayPicker, Matcher, getDefaultClassNames } from "react-day-picker";
 import { usePopper } from "react-popper";
-import { ArrowRight, CalendarDays } from "lucide-react";
+import { ArrowRight, CalendarCheck2, CalendarDays } from "lucide-react";
 import { Combobox } from "@headlessui/react";
 // ui
-import { Button } from "@plane/ui";
+import { Button, ComboDropDown } from "@plane/ui";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { renderFormattedDate } from "@/helpers/date-time.helper";
@@ -33,7 +33,6 @@ type Props = {
     from?: boolean;
     to?: boolean;
   };
-  icon?: React.ReactNode;
   minDate?: Date;
   maxDate?: Date;
   onSelect: (range: DateRange | undefined) => void;
@@ -49,7 +48,11 @@ type Props = {
     from: Date | undefined;
     to: Date | undefined;
   };
+  renderByDefault?: boolean;
+  renderPlaceholder?: boolean;
 };
+
+const defaultClassNames = getDefaultClassNames();
 
 export const DateRangeDropdown: React.FC<Props> = (props) => {
   const {
@@ -67,7 +70,6 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
       from: true,
       to: true,
     },
-    icon = <CalendarDays className="h-3 w-3 flex-shrink-0" />,
     minDate,
     maxDate,
     onSelect,
@@ -80,6 +82,8 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
     showTooltip = false,
     tabIndex,
     value,
+    renderByDefault = true,
+    renderPlaceholder = true,
   } = props;
   // states
   const [isOpen, setIsOpen] = useState(false);
@@ -131,8 +135,55 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
     setDateRange(value);
   }, [value]);
 
+  const comboButton = (
+    <button
+      ref={setReferenceElement}
+      type="button"
+      className={cn(
+        "clickable block h-full max-w-full outline-none",
+        {
+          "cursor-not-allowed text-custom-text-200": disabled,
+          "cursor-pointer": !disabled,
+        },
+        buttonContainerClassName
+      )}
+      onClick={handleOnClick}
+      disabled={disabled}
+    >
+      <DropdownButton
+        className={buttonClassName}
+        isActive={isOpen}
+        tooltipHeading="Date range"
+        tooltipContent={
+          <>
+            {dateRange.from ? renderFormattedDate(dateRange.from) : "N/A"}
+            {" - "}
+            {dateRange.to ? renderFormattedDate(dateRange.to) : "N/A"}
+          </>
+        }
+        showTooltip={showTooltip}
+        variant={buttonVariant}
+        renderToolTipByDefault={renderByDefault}
+      >
+        <span
+          className={cn("h-full flex items-center justify-center gap-1 rounded-sm flex-grow", buttonFromDateClassName)}
+        >
+          {!hideIcon.from && <CalendarDays className="h-3 w-3 flex-shrink-0" />}
+          {dateRange.from ? renderFormattedDate(dateRange.from) : renderPlaceholder ? placeholder.from : ""}
+        </span>
+        <ArrowRight className="h-3 w-3 flex-shrink-0" />
+        <span
+          className={cn("h-full flex items-center justify-center gap-1 rounded-sm flex-grow", buttonToDateClassName)}
+        >
+          {!hideIcon.to && <CalendarCheck2 className="h-3 w-3 flex-shrink-0" />}
+          {dateRange.to ? renderFormattedDate(dateRange.to) : renderPlaceholder ? placeholder.to : ""}
+        </span>
+      </DropdownButton>
+    </button>
+  );
+
   return (
-    <Combobox
+    <ComboDropDown
       as="div"
       ref={dropdownRef}
       tabIndex={tabIndex}
@@ -142,67 +193,21 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
           if (!isOpen) handleKeyDown(e);
         } else handleKeyDown(e);
       }}
+      button={comboButton}
       disabled={disabled}
+      renderByDefault={renderByDefault}
     >
-      <Combobox.Button as={React.Fragment}>
-        <button
-          ref={setReferenceElement}
-          type="button"
-          className={cn(
-            "clickable block h-full max-w-full outline-none",
-            {
-              "cursor-not-allowed text-custom-text-200": disabled,
-              "cursor-pointer": !disabled,
-            },
-            buttonContainerClassName
-          )}
-          onClick={handleOnClick}
-        >
-          <DropdownButton
-            className={buttonClassName}
-            isActive={isOpen}
-            tooltipHeading="Date range"
-            tooltipContent={
-              <>
-                {dateRange.from ? renderFormattedDate(dateRange.from) : "N/A"}
-                {" - "}
-                {dateRange.to ? renderFormattedDate(dateRange.to) : "N/A"}
-              </>
-            }
-            showTooltip={showTooltip}
-            variant={buttonVariant}
-          >
-            <span
-              className={cn(
-                "h-full flex items-center justify-center gap-1 rounded-sm flex-grow",
-                buttonFromDateClassName
-              )}
-            >
-              {!hideIcon.from && icon}
-              {dateRange.from ? renderFormattedDate(dateRange.from) : placeholder.from}
-            </span>
-            <ArrowRight className="h-3 w-3 flex-shrink-0" />
-            <span
-              className={cn(
-                "h-full flex items-center justify-center gap-1 rounded-sm flex-grow",
-                buttonToDateClassName
-              )}
-            >
-              {!hideIcon.to && icon}
-              {dateRange.to ? renderFormattedDate(dateRange.to) : placeholder.to}
-            </span>
-          </DropdownButton>
-        </button>
-      </Combobox.Button>
       {isOpen && (
         <Combobox.Options className="fixed z-10" static>
           <div
-            className="my-1 bg-custom-background-100 shadow-custom-shadow-rg rounded-md overflow-hidden p-3"
+            className="my-1 bg-custom-background-100 shadow-custom-shadow-rg overflow-hidden"
             ref={setPopperElement}
             style={styles.popper}
             {...attributes.popper}
           >
             <DayPicker
+              captionLayout="dropdown"
+              classNames={{ root: `${defaultClassNames.root} p-3 rounded-md` }}
               selected={dateRange}
               onSelect={(val) => {
                 // if both the dates are not required, immediately call onSelect
@@ -215,7 +220,8 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
               mode="range"
               disabled={disabledDays}
               showOutsideDays
-              initialFocus
+              autoFocus
+              fixedWeeks
               footer={
                 bothRequired && (
                   <div className="grid grid-cols-2 items-center gap-3.5 pt-6 relative">
@@ -250,6 +256,6 @@ export const DateRangeDropdown: React.FC<Props> = (props) => {
           </div>
         </Combobox.Options>
       )}
-    </Combobox>
+    </ComboDropDown>
   );
 };
