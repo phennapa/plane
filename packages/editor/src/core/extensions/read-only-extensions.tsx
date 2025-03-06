@@ -27,14 +27,14 @@ import {
 } from "@/extensions";
 // helpers
 import { isValidHttpUrl } from "@/helpers/common";
-// types
-import { TExtensions, TFileHandler, TReadOnlyMentionHandler } from "@/types";
 // plane editor extensions
 import { CoreReadOnlyEditorAdditionalExtensions } from "@/plane-editor/extensions";
+// types
+import { TExtensions, TReadOnlyFileHandler, TReadOnlyMentionHandler } from "@/types";
 
 type Props = {
   disabledExtensions: TExtensions[];
-  fileHandler: Pick<TFileHandler, "getAssetSrc">;
+  fileHandler: TReadOnlyFileHandler;
   mentionHandler: TReadOnlyMentionHandler;
 };
 
@@ -46,12 +46,12 @@ export const CoreReadOnlyEditorExtensions = (props: Props): Extensions => {
     StarterKit.configure({
       bulletList: {
         HTMLAttributes: {
-          class: "list-disc pl-7 space-y-2",
+          class: "list-disc pl-7 space-y-[--list-spacing-y]",
         },
       },
       orderedList: {
         HTMLAttributes: {
-          class: "list-decimal pl-7 space-y-2",
+          class: "list-decimal pl-7 space-y-[--list-spacing-y]",
         },
       },
       listItem: {
@@ -94,16 +94,12 @@ export const CoreReadOnlyEditorExtensions = (props: Props): Extensions => {
       },
     }),
     CustomTypographyExtension,
-    ReadOnlyImageExtension({
-      getAssetSrc: fileHandler.getAssetSrc,
-    }).configure({
+    ReadOnlyImageExtension(fileHandler).configure({
       HTMLAttributes: {
         class: "rounded-md",
       },
     }),
-    CustomReadOnlyImageExtension({
-      getAssetSrc: fileHandler.getAssetSrc,
-    }),
+    CustomReadOnlyImageExtension(fileHandler),
     TiptapUnderline,
     TextStyle,
     TaskList.configure({

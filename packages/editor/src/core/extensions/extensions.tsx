@@ -32,10 +32,10 @@ import {
 } from "@/extensions";
 // helpers
 import { isValidHttpUrl } from "@/helpers/common";
-// types
-import { TExtensions, TFileHandler, TMentionHandler } from "@/types";
 // plane editor extensions
 import { CoreEditorAdditionalExtensions } from "@/plane-editor/extensions";
+// types
+import { TExtensions, TFileHandler, TMentionHandler } from "@/types";
 
 type TArguments = {
   disabledExtensions: TExtensions[];
@@ -55,12 +55,12 @@ export const CoreEditorExtensions = (args: TArguments): Extensions => {
     StarterKit.configure({
       bulletList: {
         HTMLAttributes: {
-          class: "list-disc pl-7 space-y-2",
+          class: "list-disc pl-7 space-y-[--list-spacing-y]",
         },
       },
       orderedList: {
         HTMLAttributes: {
-          class: "list-decimal pl-7 space-y-2",
+          class: "list-decimal pl-7 space-y-[--list-spacing-y]",
         },
       },
       listItem: {
@@ -148,7 +148,7 @@ export const CoreEditorExtensions = (args: TArguments): Extensions => {
     CustomMentionExtension(mentionHandler),
     Placeholder.configure({
       placeholder: ({ editor, node }) => {
-        if (!editor.isEditable) return;
+        if (!editor.isEditable) return "";
 
         if (node.type.name === "heading") return `Heading ${node.attrs.level}`;
 
