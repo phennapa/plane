@@ -4,8 +4,9 @@ import { MutableRefObject, useEffect, useRef, useState } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { observer } from "mobx-react";
-import { cn } from "@plane/editor";
-// plane packages
+// plane constants
+import { EIssueLayoutTypes } from "@plane/constants";
+// plane ui
 import {
   IGroupByColumn,
   TIssueMap,
@@ -13,8 +14,11 @@ import {
   TIssueOrderByOptions,
   TIssue,
   IIssueDisplayProperties,
+  TIssueKanbanFilters,
 } from "@plane/types";
-import { setToast, TOAST_TYPE } from "@plane/ui";
+import { Row, setToast, TOAST_TYPE } from "@plane/ui";
+// plane utils
+import { cn } from "@plane/utils";
 // components
 import { ListLoaderItemRow } from "@/components/ui";
 // constants
@@ -24,8 +28,11 @@ import { useProjectState } from "@/hooks/store";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useIssuesStore } from "@/hooks/use-issue-layout-store";
 import { TSelectionHelper } from "@/hooks/use-multiple-select";
-// components
+// Plane-web
+import { useWorkFlowFDragNDrop } from "@/plane-web/components/workflow";
+//
 import { GroupDragOverlay } from "../group-drag-overlay";
+import { ListQuickAddIssueButton, QuickAddIssueRoot } from "../quick-add";
 import {
   GroupDropLocation,
   getDestinationFromDropPayload,
@@ -36,7 +43,6 @@ import {
 import { IssueBlocksList } from "./blocks-list";
 import { HeaderGroupByCard } from "./headers/group-by-card";
 import { TRenderQuickActions } from "./list-view-types";
-import { ListQuickAddIssueForm } from "./quick-add-issue-form";
 
 interface Props {
   groupIssueIds: string[] | undefined;
@@ -59,6 +65,9 @@ interface Props {
   showEmptyGroup?: boolean;
   loadMoreIssues: (groupId?: string) => void;
   selectionHelpers: TSelectionHelper;
+  handleCollapsedGroups: (value: string) => void;
+  collapsedGroups: TIssueKanbanFilters;
+  isEpic?: boolean;
 }
 
 export const ListGroup = observer((props: Props) => {
@@ -83,11 +92,14 @@ export const ListGroup = observer((props: Props) => {
     showEmptyGroup,
     loadMoreIssues,
     selectionHelpers,
+    handleCollapsedGroups,
+    collapsedGroups,
+    isEpic = false,
   } = props;
 
   const [isDraggingOverColumn, setIsDraggingOverColumn] = useState(false);
   const [dragColumnOrientation, setDragColumnOrientation] = useState<"justify-start" | "justify-end">("justify-start");
-  const [isExpanded, setIsExpanded] = useState(true);
+  const isExpanded = !collapsedGroups?.group_by.includes(group.id);
   const groupRef = useRef<HTMLDivElement | null>(null);
 
   const projectState = useProjectState();
@@ -97,6 +109,8 @@ export const ListGroup = observer((props: Props) => {
   } = useIssuesStore();
 
   const [intersectionElement, setIntersectionElement] = useState<HTMLDivElement | null>(null);
+
+  const { workflowDisabledSource, isWorkflowDropDisabled, handleWorkFlowState } = useWorkFlowFDragNDrop(group_by);
 
   const groupIssueCount = getGroupIssueCount(group.id, undefined, false) ?? 0;
   const nextPageResults = getPaginationData(group.id, undefined)?.nextPageResults;
@@ -114,7 +128,7 @@ export const ListGroup = observer((props: Props) => {
   ) : (
     <div
       className={
-        "h-11 relative flex items-center gap-3 bg-custom-background-100 border border-transparent border-t-custom-border-200 pl-8 p-3 text-sm font-medium text-custom-text-350 hover:text-custom-text-300 hover:underline cursor-pointer"
+        "h-11 relative flex items-center gap-3 bg-custom-background-100 border border-transparent border-t-custom-border-200 pl-8 p-3 text-sm font-medium text-custom-primary-100 hover:text-custom-primary-200 hover:underline cursor-pointer"
       }
       onClick={() => loadMoreIssues(group.id)}
     >
@@ -125,10 +139,6 @@ export const ListGroup = observer((props: Props) => {
   const validateEmptyIssueGroups = (issueCount: number = 0) => {
     if (!showEmptyGroup && issueCount <= 0) return false;
     return true;
-  };
-
-  const toggleListGroup = () => {
-    setIsExpanded((prevState) => !prevState);
   };
 
   const prePopulateQuickAddData = (groupByKey: string | null, value: any) => {
@@ -182,6 +192,8 @@ export const ListGroup = observer((props: Props) => {
           const sourceGroupId = source?.data?.groupId as string | undefined;
           const currentGroupId = group.id;
 
+          sourceGroupId && handleWorkFlowState(sourceGroupId, currentGroupId);
+
           const sourceIndex = getGroupIndex(sourceGroupId);
           const currentIndex = getGroupIndex(currentGroupId);
 
@@ -198,7 +210,7 @@ export const ListGroup = observer((props: Props) => {
 
           if (!source || !destination) return;
 
-          if (group.isDropDisabled) {
+          if (isWorkflowDropDisabled || group.isDropDisabled) {
             group.dropErrorMessage &&
               setToast({
                 type: TOAST_TYPE.WARNING,
@@ -211,13 +223,25 @@ export const ListGroup = observer((props: Props) => {
           handleOnDrop(source, destination);
 
           highlightIssueOnDrop(getIssueBlockId(source.id, destination?.groupId), orderBy !== "sort_order");
+
+          if (!isExpanded) {
+            handleCollapsedGroups(group.id);
+          }
         },
       })
     );
-  }, [groupRef?.current, group, orderBy, getGroupIndex, setDragColumnOrientation, setIsDraggingOverColumn]);
+  }, [
+    groupRef?.current,
+    group,
+    orderBy,
+    getGroupIndex,
+    setDragColumnOrientation,
+    setIsDraggingOverColumn,
+    isWorkflowDropDisabled,
+  ]);
 
   const isDragAllowed = !!group_by && DRAG_ALLOWED_GROUPS.includes(group_by);
-  const canOverlayBeVisible = orderBy !== "sort_order" || !!group.isDropDisabled;
+  const canOverlayBeVisible = isWorkflowDropDisabled || orderBy !== "sort_order" || !!group.isDropDisabled;
 
   const isGroupByCreatedBy = group_by === "created_by";
   const shouldExpand = (!!groupIssueCount && isExpanded) || !group_by;
@@ -230,9 +254,14 @@ export const ListGroup = observer((props: Props) => {
         "border-custom-error-200": isDraggingOverColumn && !!group.isDropDisabled,
       })}
     >
-      <div className="sticky top-0 z-[2] w-full flex-shrink-0 border-b border-custom-border-200 bg-custom-background-90 pl-2 pr-3 py-1">
+      <Row
+        className={cn("w-full flex-shrink-0 border-b border-custom-border-200 bg-custom-background-90 pr-3 py-1", {
+          "sticky top-0 z-[2]": isExpanded && groupIssueCount > 0,
+        })}
+      >
         <HeaderGroupByCard
           groupID={group.id}
+          groupBy={group_by}
           icon={group.icon}
           title={group.name || ""}
           count={groupIssueCount}
@@ -241,18 +270,21 @@ export const ListGroup = observer((props: Props) => {
           disableIssueCreation={disableIssueCreation || isGroupByCreatedBy || isCompletedCycle}
           addIssuesToView={addIssuesToView}
           selectionHelpers={selectionHelpers}
-          toggleListGroup={toggleListGroup}
+          handleCollapsedGroups={handleCollapsedGroups}
+          isEpic={isEpic}
         />
-      </div>
+      </Row>
       {shouldExpand && (
         <div className="relative">
           <GroupDragOverlay
             dragColumnOrientation={dragColumnOrientation}
             canOverlayBeVisible={canOverlayBeVisible}
-            isDropDisabled={!!group.isDropDisabled}
+            isDropDisabled={isWorkflowDropDisabled || !!group.isDropDisabled}
+            workflowDisabledSource={workflowDisabledSource}
             dropErrorMessage={group.dropErrorMessage}
             orderBy={orderBy}
             isDraggingOverColumn={isDraggingOverColumn}
+            isEpic={isEpic}
           />
           {groupIssueIds && (
             <IssueBlocksList
@@ -267,6 +299,7 @@ export const ListGroup = observer((props: Props) => {
               isDragAllowed={isDragAllowed}
               canDropOverIssue={!canOverlayBeVisible}
               selectionHelpers={selectionHelpers}
+              isEpic={isEpic}
             />
           )}
 
@@ -274,9 +307,13 @@ export const ListGroup = observer((props: Props) => {
 
           {enableIssueQuickAdd && !disableIssueCreation && !isGroupByCreatedBy && !isCompletedCycle && (
             <div className="sticky bottom-0 z-[1] w-full flex-shrink-0">
-              <ListQuickAddIssueForm
+              <QuickAddIssueRoot
+                layout={EIssueLayoutTypes.LIST}
+                QuickAddButton={ListQuickAddIssueButton}
                 prePopulatedData={prePopulateQuickAddData(group_by, group.id)}
+                containerClassName="border-b border-t border-custom-border-200 bg-custom-background-100 "
                 quickAddCallback={quickAddCallback}
+                isEpic={isEpic}
               />
             </div>
           )}

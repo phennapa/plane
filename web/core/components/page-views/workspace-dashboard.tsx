@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // components
+import { ContentWrapper } from "@plane/ui";
 import { DashboardWidgets } from "@/components/dashboard";
 import { EmptyState } from "@/components/empty-state";
 import { IssuePeekOverview } from "@/components/issues";
@@ -18,15 +19,11 @@ import useSize from "@/hooks/use-window-size";
 
 export const WorkspaceDashboardView = observer(() => {
   // store hooks
-  const {
-    //  captureEvent,
-    setTrackElement,
-  } = useEventTracker();
+  const { captureEvent, setTrackElement } = useEventTracker();
   const { toggleCreateProjectModal } = useCommandPalette();
   const { workspaceSlug } = useParams();
   const { data: currentUser } = useUser();
   const { data: currentUserProfile, updateTourCompleted } = useUserProfile();
-  const { captureEvent } = useEventTracker();
   const { homeDashboardId, fetchHomeDashboardWidgets } = useDashboard();
   const { joinedProjectIds, loader } = useProject();
 
@@ -62,21 +59,18 @@ export const WorkspaceDashboardView = observer(() => {
       )}
       {homeDashboardId && joinedProjectIds && (
         <>
-          {joinedProjectIds.length > 0 || loader ? (
+          {joinedProjectIds.length > 0 || loader === "init-loader" ? (
             <>
               <IssuePeekOverview />
-              <div
-                className={cn(
-                  "space-y-7 md:p-7 p-3 bg-custom-background-90 h-full w-full flex flex-col overflow-y-auto",
-                  {
-                    "vertical-scrollbar scrollbar-lg": windowWidth >= 768,
-                  }
-                )}
+              <ContentWrapper
+                className={cn("gap-7 bg-custom-background-90/20", {
+                  "vertical-scrollbar scrollbar-lg": windowWidth >= 768,
+                })}
               >
                 {currentUser && <UserGreetingsView user={currentUser} />}
 
                 <DashboardWidgets />
-              </div>
+              </ContentWrapper>
             </>
           ) : (
             <EmptyState

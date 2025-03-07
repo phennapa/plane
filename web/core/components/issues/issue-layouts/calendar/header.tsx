@@ -2,23 +2,30 @@ import { observer } from "mobx-react";
 
 // components
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { EIssueFilterType } from "@plane/constants";
 import {
   IIssueDisplayFilterOptions,
   IIssueDisplayProperties,
   IIssueFilterOptions,
   TIssueKanbanFilters,
 } from "@plane/types";
+import { Row } from "@plane/ui";
 import { CalendarMonthsDropdown, CalendarOptionsDropdown } from "@/components/issues";
 // icons
-import { EIssueFilterType } from "@/constants/issue";
 import { useCalendarView } from "@/hooks/store/use-calendar-view";
+import { IProjectEpicsFilter } from "@/plane-web/store/issue/epic";
 import { ICycleIssuesFilter } from "@/store/issue/cycle";
 import { IModuleIssuesFilter } from "@/store/issue/module";
 import { IProjectIssuesFilter } from "@/store/issue/project";
 import { IProjectViewIssuesFilter } from "@/store/issue/project-views";
 
 interface ICalendarHeader {
-  issuesFilterStore: IProjectIssuesFilter | IModuleIssuesFilter | ICycleIssuesFilter | IProjectViewIssuesFilter;
+  issuesFilterStore:
+    | IProjectIssuesFilter
+    | IModuleIssuesFilter
+    | ICycleIssuesFilter
+    | IProjectViewIssuesFilter
+    | IProjectEpicsFilter;
   updateFilters?: (
     projectId: string,
     filterType: EIssueFilterType,
@@ -96,7 +103,7 @@ export const CalendarHeader: React.FC<ICalendarHeader> = observer((props) => {
   };
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-2 px-3">
+    <Row className="mb-4 flex items-center justify-between gap-2">
       <div className="flex items-center gap-1.5">
         <button type="button" className="grid place-items-center" onClick={handlePrevious}>
           <ChevronLeft size={16} strokeWidth={2} />
@@ -116,6 +123,6 @@ export const CalendarHeader: React.FC<ICalendarHeader> = observer((props) => {
         </button>
         <CalendarOptionsDropdown issuesFilterStore={issuesFilterStore} updateFilters={updateFilters} />
       </div>
-    </div>
+    </Row>
   );
 });

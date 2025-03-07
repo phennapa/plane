@@ -1,13 +1,8 @@
 "use client";
 
 import { linearGradientDef } from "@nivo/core";
-// icons
-import { BarChart2, Bell, Briefcase, CheckCircle, Home, Settings } from "lucide-react";
 // types
 import { TIssuesListTypes, TStateGroups } from "@plane/types";
-// ui
-import { ContrastIcon } from "@plane/ui";
-import { Props } from "@/components/icons/types";
 // assets
 import CompletedIssuesDark from "@/public/empty-state/dashboard/dark/completed-issues.svg";
 import OverdueIssuesDark from "@/public/empty-state/dashboard/dark/overdue-issues.svg";
@@ -15,8 +10,6 @@ import UpcomingIssuesDark from "@/public/empty-state/dashboard/dark/upcoming-iss
 import CompletedIssuesLight from "@/public/empty-state/dashboard/light/completed-issues.svg";
 import OverdueIssuesLight from "@/public/empty-state/dashboard/light/overdue-issues.svg";
 import UpcomingIssuesLight from "@/public/empty-state/dashboard/light/upcoming-issues.svg";
-// constants
-import { EUserWorkspaceRoles } from "./workspace";
 
 // gradients for issues by priority widget graph bars
 export const PRIORITY_GRAPH_GRADIENTS = [
@@ -251,78 +244,6 @@ export const CREATED_ISSUES_EMPTY_STATES = {
   },
 };
 
-export const SIDEBAR_WORKSPACE_MENU_ITEMS: {
-  key: string;
-  label: string;
-  href: string;
-  access: EUserWorkspaceRoles;
-  highlight: (pathname: string, baseUrl: string) => boolean;
-  Icon: React.FC<Props>;
-}[] = [
-  {
-    key: "all-issues",
-    label: "All Issues",
-    href: `/workspace-views/all-issues`,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname.includes(`${baseUrl}/workspace-views/`),
-    Icon: CheckCircle,
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    href: `/projects`,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/projects/`,
-    Icon: Briefcase,
-  },
-  {
-    key: "active-cycles",
-    label: "Active Cycles",
-    href: `/active-cycles`,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/active-cycles/`,
-    Icon: ContrastIcon,
-  },
-  {
-    key: "analytics",
-    label: "Analytics",
-    href: `/analytics`,
-    access: EUserWorkspaceRoles.MEMBER,
-    highlight: (pathname: string, baseUrl: string) => pathname.includes(`${baseUrl}/analytics/`),
-    Icon: BarChart2,
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    href: `/settings`,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname.includes(`${baseUrl}/settings/`),
-    Icon: Settings,
-  },
-];
-
-export const SIDEBAR_USER_MENU_ITEMS: {
-  key: string;
-  label: string;
-  href: string;
-  access: EUserWorkspaceRoles;
-  highlight: (pathname: string, baseUrl: string) => boolean;
-  Icon: React.FC<Props>;
-}[] = [
-  {
-    key: "home",
-    label: "Home",
-    href: ``,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/`,
-    Icon: Home,
-  },
-  {
-    key: "notifications",
-    label: "Notifications",
-    href: `/notifications`,
-    access: EUserWorkspaceRoles.GUEST,
-    highlight: (pathname: string, baseUrl: string) => pathname === `${baseUrl}/notifications`,
-    Icon: Bell,
-  },
-];
+export type TLinkOptions = {
+  userId: string | undefined;
+};

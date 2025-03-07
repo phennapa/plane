@@ -15,7 +15,8 @@ export type TPage = {
   label_ids: string[] | undefined;
   name: string | undefined;
   owned_by: string | undefined;
-  project_ids: string[] | undefined;
+  project_ids?: string[] | undefined;
+  team: string | null | undefined;
   updated_at: Date | undefined;
   updated_by: string | undefined;
   workspace: string | undefined;
@@ -25,11 +26,7 @@ export type TPage = {
 // page filters
 export type TPageNavigationTabs = "public" | "private" | "archived";
 
-export type TPageFiltersSortKey =
-  | "name"
-  | "created_at"
-  | "updated_at"
-  | "opened_at";
+export type TPageFiltersSortKey = "name" | "created_at" | "updated_at" | "opened_at";
 
 export type TPageFiltersSortBy = "asc" | "desc";
 
@@ -45,4 +42,35 @@ export type TPageFilters = {
   sortKey: TPageFiltersSortKey;
   sortBy: TPageFiltersSortBy;
   filters?: TPageFilterProps;
+};
+
+export type TPageEmbedType = "mention" | "issue";
+
+export type TPageVersion = {
+  created_at: string;
+  created_by: string;
+  deleted_at: string | null;
+  description_binary?: string | null;
+  description_html?: string | null;
+  description_json?: object;
+  id: string;
+  last_saved_at: string;
+  owned_by: string;
+  page: string;
+  updated_at: string;
+  updated_by: string;
+  workspace: string;
+};
+
+export type TDocumentPayload = {
+  description_binary: string;
+  description_html: string;
+  description: object;
+};
+
+export type TWebhookConnectionQueryParams = {
+  documentType: "project_page" | "team_page" | "workspace_page";
+  projectId?: string;
+  teamId?: string;
+  workspaceSlug: string;
 };

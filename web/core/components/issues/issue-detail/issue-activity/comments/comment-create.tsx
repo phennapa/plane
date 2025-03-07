@@ -1,15 +1,20 @@
-import { FC, useRef } from "react";
+import { FC, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
+import { EIssueCommentAccessSpecifier } from "@plane/constants";
+// plane editor
+import { EditorRefApi } from "@plane/editor";
 // types
 import { TIssueComment } from "@plane/types";
 // components
-import { LiteTextEditor } from "@/components/editor/lite-text-editor/lite-text-editor";
-// constants
-import { EIssueCommentAccessSpecifier } from "@/constants/issue";
+import { LiteTextEditor } from "@/components/editor";
 // helpers
-import { isEmptyHtmlString } from "@/helpers/string.helper";
+import { cn } from "@/helpers/common.helper";
+import { isCommentEmpty } from "@/helpers/string.helper";
 // hooks
-import { useWorkspace } from "@/hooks/store";
+import { useIssueDetail, useWorkspace } from "@/hooks/store";
+// services
+import { FileService } from "@/services/file.service";
+const fileService = new FileService();
 // editor
 import { TActivityOperations } from "../root";
 
@@ -23,16 +28,20 @@ type TIssueCommentCreate = {
 
 export const IssueCommentCreate: FC<TIssueCommentCreate> = (props) => {
   const { workspaceSlug, projectId, issueId, activityOperations, showAccessSpecifier = false } = props;
+  // states
+  const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
   // refs
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<EditorRefApi>(null);
   // store hooks
   const workspaceStore = useWorkspace();
+  const { peekIssue } = useIssueDetail();
   // derived values
   const workspaceId = workspaceStore.getWorkspaceBySlug(workspaceSlug as string)?.id as string;
   // form info
   const {
     handleSubmit,
     control,
+    watch,
     formState: { isSubmitting },
     reset,
   } = useForm<Partial<TIssueComment>>({
@@ -41,16 +50,38 @@ export const IssueCommentCreate: FC<TIssueCommentCreate> = (props) => {
     },
   });
 
-  const onSubmit = async (formData: Partial<TIssueComment>) =>
-    await activityOperations.createComment(formData).finally(() => {
-      reset({
-        comment_html: "<p></p>",
+  const onSubmit = async (formData: Partial<TIssueComment>) => {
+    await activityOperations
+      .createComment(formData)
+      .then(async (res) => {
+        if (uploadedAssetIds.length > 0) {
+          await fileService.updateBulkProjectAssetsUploadStatus(workspaceSlug, projectId, res.id, {
+            asset_ids: uploadedAssetIds,
+          });
+          setUploadedAssetIds([]);
+        }
+      })
+      .finally(() => {
+        reset({
+          comment_html: "<p></p>",
+        });
+        editorRef.current?.clearEditor();
       });
-      editorRef.current?.clearEditor();
-    });
+  };
+
+  const commentHTML = watch("comment_html");
+  const isEmpty = isCommentEmpty(commentHTML);
 
   return (
-    <div>
+    <div
+      className={cn("sticky bottom-0 z-[4] bg-custom-background-100 sm:static", {
+        "-bottom-5": !peekIssue,
+      })}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !isEmpty && !isSubmitting)
+          handleSubmit(onSubmit)(e);
+      }}
+    >
       <Controller
         name="access"
         control={control}
@@ -64,15 +95,11 @@ export const IssueCommentCreate: FC<TIssueCommentCreate> = (props) => {
                 id={"add_comment_" + issueId}
                 value={"<p></p>"}
                 projectId={projectId}
+                issue_id={issueId}
                 workspaceSlug={workspaceSlug}
-                onEnterKeyPress={(commentHTML) => {
-                  console.log("commentHTML", commentHTML);
-                  const isEmpty =
-                    commentHTML?.trim() === "" ||
-                    commentHTML === "<p></p>" ||
-                    (isEmptyHtmlString(commentHTML ?? "") && !commentHTML?.includes("mention-component"));
+                onEnterKeyPress={(e) => {
                   if (!isEmpty && !isSubmitting) {
-                    handleSubmit(onSubmit)();
+                    handleSubmit(onSubmit)(e);
                   }
                 }}
                 ref={editorRef}
@@ -83,6 +110,11 @@ export const IssueCommentCreate: FC<TIssueCommentCreate> = (props) => {
                 handleAccessChange={onAccessChange}
                 showAccessSpecifier={showAccessSpecifier}
                 isSubmitting={isSubmitting}
+                uploadFile={async (file) => {
+                  const { asset_id } = await activityOperations.uploadCommentAsset(file);
+                  setUploadedAssetIds((prev) => [...prev, asset_id]);
+                  return asset_id;
+                }}
               />
             )}
           />

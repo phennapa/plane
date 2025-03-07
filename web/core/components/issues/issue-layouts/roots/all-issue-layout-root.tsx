@@ -3,6 +3,8 @@ import isEmpty from "lodash/isEmpty";
 import { observer } from "mobx-react";
 import { useParams, useSearchParams } from "next/navigation";
 import useSWR from "swr";
+// plane constants
+import { ALL_ISSUES, EIssueLayoutTypes, EIssueFilterType, EIssuesStoreType } from "@plane/constants";
 import { IIssueDisplayFilterOptions } from "@plane/types";
 // hooks
 // components
@@ -11,20 +13,14 @@ import { SpreadsheetView } from "@/components/issues/issue-layouts";
 import { AllIssueQuickActions } from "@/components/issues/issue-layouts/quick-action-dropdowns";
 import { SpreadsheetLayoutLoader } from "@/components/ui";
 // constants
-import {
-  ALL_ISSUES,
-  EIssueFilterType,
-  EIssueLayoutTypes,
-  EIssuesStoreType,
-  ISSUE_DISPLAY_FILTERS_BY_LAYOUT,
-} from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
+import { ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@/constants/issue";
 // hooks
-import { useGlobalView, useIssues, useUser } from "@/hooks/store";
+import { useGlobalView, useIssues, useUserPermissions } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { IssuesStoreContext } from "@/hooks/use-issue-layout-store";
 import { useIssuesActions } from "@/hooks/use-issues-actions";
 import { useWorkspaceIssueProperties } from "@/hooks/use-workspace-issue-properties";
+import { EUserPermissions, EUserPermissionsLevel } from "@/plane-web/constants/user-permissions";
 // store
 import emptyView from "@/public/empty-state/view.svg";
 import { IssuePeekOverview } from "../../peek-overview";
@@ -33,10 +29,12 @@ import { TRenderQuickActions } from "../list/list-view-types";
 
 type Props = {
   isDefaultView: boolean;
+  isLoading?: boolean;
+  toggleLoading: (value: boolean) => void;
 };
 
 export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
-  const { isDefaultView } = props;
+  const { isDefaultView, isLoading = false, toggleLoading } = props;
   // router
   const { workspaceSlug, globalViewId } = useParams();
   const router = useAppRouter();
@@ -56,9 +54,8 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
   } = useIssues(EIssuesStoreType.GLOBAL);
   const { updateIssue, removeIssue, archiveIssue } = useIssuesActions(EIssuesStoreType.GLOBAL);
 
-  const {
-    membership: { currentWorkspaceAllProjectsRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
+
   const { fetchAllGlobalViews, getViewDetailsById } = useGlobalView();
 
   const viewDetails = getViewDetailsById(globalViewId?.toString());
@@ -97,7 +94,7 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
     if (workspaceSlug && globalViewId) fetchNextIssues(workspaceSlug.toString(), globalViewId.toString());
   }, [fetchNextIssues, workspaceSlug, globalViewId]);
 
-  const { isLoading } = useSWR(
+  const { isLoading: globalViewsLoading } = useSWR(
     workspaceSlug ? `WORKSPACE_GLOBAL_VIEWS_${workspaceSlug}` : null,
     async () => {
       if (workspaceSlug) {
@@ -107,11 +104,12 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
     { revalidateIfStale: false, revalidateOnFocus: false }
   );
 
-  useSWR(
+  const { isLoading: issuesLoading } = useSWR(
     workspaceSlug && globalViewId ? `WORKSPACE_GLOBAL_VIEW_ISSUES_${workspaceSlug}_${globalViewId}` : null,
     async () => {
       if (workspaceSlug && globalViewId) {
         clear();
+        toggleLoading(true);
         await fetchFilters(workspaceSlug.toString(), globalViewId.toString());
         await fetchIssues(
           workspaceSlug.toString(),
@@ -123,6 +121,7 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
           }
         );
         routerFilterParams();
+        toggleLoading(false);
       }
     },
     { revalidateIfStale: false, revalidateOnFocus: false }
@@ -131,12 +130,14 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
   const canEditProperties = useCallback(
     (projectId: string | undefined) => {
       if (!projectId) return false;
-
-      const currentProjectRole = currentWorkspaceAllProjectsRole && currentWorkspaceAllProjectsRole[projectId];
-
-      return !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER;
+      return allowPermissions(
+        [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+        EUserPermissionsLevel.PROJECT,
+        workspaceSlug.toString(),
+        projectId
+      );
     },
-    [currentWorkspaceAllProjectsRole]
+    [workspaceSlug]
   );
 
   const issueFilters = globalViewId ? filters?.[globalViewId.toString()] : undefined;
@@ -174,7 +175,7 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
   );
 
   // when the call is not loading and the view does not exist and the view is not a default view, show empty state
-  if (!isLoading && !viewDetails && !isDefaultView) {
+  if (!isLoading && !globalViewsLoading && !issuesLoading && !viewDetails && !isDefaultView) {
     return (
       <EmptyState
         image={emptyView}
@@ -188,7 +189,7 @@ export const AllIssueLayoutRoot: React.FC<Props> = observer((props: Props) => {
     );
   }
 
-  if (getIssueLoader() === "init-loader" || !globalViewId || !groupedIssueIds) {
+  if ((isLoading && issuesLoading && getIssueLoader() === "init-loader") || !globalViewId || !groupedIssueIds) {
     return <SpreadsheetLayoutLoader />;
   }
 

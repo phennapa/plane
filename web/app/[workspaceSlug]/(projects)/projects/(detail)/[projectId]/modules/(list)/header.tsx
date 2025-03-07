@@ -1,65 +1,51 @@
 "use client";
 
 import { observer } from "mobx-react";
-import { useParams } from "next/navigation";
 // ui
-import { Breadcrumbs, Button, DiceIcon } from "@plane/ui";
+import { Breadcrumbs, Button, DiceIcon, Header } from "@plane/ui";
 // components
-import { BreadcrumbLink, Logo } from "@/components/common";
+import { BreadcrumbLink } from "@/components/common";
 import { ModuleViewHeader } from "@/components/modules";
-// constants
-import { EUserProjectRoles } from "@/constants/project";
 // hooks
-import { useCommandPalette, useEventTracker, useProject, useUser } from "@/hooks/store";
+import { useCommandPalette, useEventTracker, useProject, useUserPermissions } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
+// plane web
+import { ProjectBreadcrumb } from "@/plane-web/components/breadcrumbs";
+// constants
+import { EUserPermissions, EUserPermissionsLevel } from "@/plane-web/constants/user-permissions";
 
 export const ModulesListHeader: React.FC = observer(() => {
   // router
   const router = useAppRouter();
-  const { workspaceSlug } = useParams();
   // store hooks
   const { toggleCreateModuleModal } = useCommandPalette();
   const { setTrackElement } = useEventTracker();
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
-  const { currentProjectDetails, loader } = useProject();
+  const { allowPermissions } = useUserPermissions();
+
+  const { loader } = useProject();
 
   // auth
-  const canUserCreateModule =
-    currentProjectRole && [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER].includes(currentProjectRole);
+  const canUserCreateModule = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
 
   return (
-    <div className="relative z-10 flex h-[3.75rem] w-full flex-shrink-0 flex-row items-center justify-between gap-x-2 gap-y-4 bg-custom-sidebar-background-100 p-4">
-      <div className="flex w-full flex-grow items-center gap-2 overflow-ellipsis whitespace-nowrap">
+    <Header>
+      <Header.LeftItem>
         <div>
-          <Breadcrumbs onBack={router.back} isLoading={loader}>
-            <Breadcrumbs.BreadcrumbItem
-              type="text"
-              link={
-                <BreadcrumbLink
-                  href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/issues`}
-                  label={currentProjectDetails?.name ?? "Project"}
-                  icon={
-                    currentProjectDetails && (
-                      <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
-                        <Logo logo={currentProjectDetails?.logo_props} size={16} />
-                      </span>
-                    )
-                  }
-                />
-              }
-            />
+          <Breadcrumbs onBack={router.back} isLoading={loader === "init-loader"}>
+            <ProjectBreadcrumb />
             <Breadcrumbs.BreadcrumbItem
               type="text"
               link={<BreadcrumbLink label="Modules" icon={<DiceIcon className="h-4 w-4 text-custom-text-300" />} />}
             />
           </Breadcrumbs>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
+      </Header.LeftItem>
+      <Header.RightItem>
         <ModuleViewHeader />
-        {canUserCreateModule && (
+        {canUserCreateModule ? (
           <Button
             variant="primary"
             size="sm"
@@ -70,8 +56,10 @@ export const ModulesListHeader: React.FC = observer(() => {
           >
             <div className="hidden sm:block">Add</div> Module
           </Button>
+        ) : (
+          <></>
         )}
-      </div>
-    </div>
+      </Header.RightItem>
+    </Header>
   );
 });

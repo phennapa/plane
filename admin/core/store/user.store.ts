@@ -1,12 +1,10 @@
 import { action, observable, runInAction, makeObservable } from "mobx";
+// plane internal packages
+import { EUserStatus, TUserStatus } from "@plane/constants";
+import { AuthService, UserService } from "@plane/services";
 import { IUser } from "@plane/types";
-// helpers
-import { EUserStatus, TUserStatus } from "@/helpers/user.helper";
-// services
-import { AuthService } from "@/services/auth.service";
-import { UserService } from "@/services/user.service";
 // root store
-import { RootStore } from "@/store/root.store";
+import { CoreRootStore } from "@/store/root.store";
 
 export interface IUserStore {
   // observables
@@ -31,7 +29,7 @@ export class UserStore implements IUserStore {
   userService;
   authService;
 
-  constructor(private store: RootStore) {
+  constructor(private store: CoreRootStore) {
     makeObservable(this, {
       // observables
       isLoading: observable.ref,
@@ -58,7 +56,7 @@ export class UserStore implements IUserStore {
   fetchCurrentUser = async () => {
     try {
       if (this.currentUser === undefined) this.isLoading = true;
-      const currentUser = await this.userService.currentUser();
+      const currentUser = await this.userService.adminDetails();
       if (currentUser) {
         await this.store.instance.fetchInstanceAdmins();
         runInAction(() => {

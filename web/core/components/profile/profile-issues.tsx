@@ -3,11 +3,11 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 // components
+import { EIssuesStoreType } from "@plane/constants";
 import { IssuePeekOverview, ProfileIssuesAppliedFiltersRoot } from "@/components/issues";
 import { ProfileIssuesKanBanLayout } from "@/components/issues/issue-layouts/kanban/roots/profile-issues-root";
 import { ProfileIssuesListLayout } from "@/components/issues/issue-layouts/list/roots/profile-issues-root";
 // hooks
-import { EIssuesStoreType } from "@/constants/issue";
 import { useIssues } from "@/hooks/store";
 import { IssuesStoreContext } from "../../hooks/use-issue-layout-store";
 // constants
@@ -47,13 +47,15 @@ export const ProfileIssuesPage = observer((props: IProfileIssuesPage) => {
 
   return (
     <IssuesStoreContext.Provider value={EIssuesStoreType.PROFILE}>
-      <ProfileIssuesAppliedFiltersRoot />
-      <div className="-z-1 relative h-full w-full overflow-auto">
-        {activeLayout === "list" ? (
-          <ProfileIssuesListLayout />
-        ) : activeLayout === "kanban" ? (
-          <ProfileIssuesKanBanLayout />
-        ) : null}
+      <div className="flex flex-col h-full w-full">
+        <ProfileIssuesAppliedFiltersRoot />
+        <div className="-z-1 relative h-full w-full overflow-auto">
+          {activeLayout === "list" ? (
+            <ProfileIssuesListLayout />
+          ) : activeLayout === "kanban" ? (
+            <ProfileIssuesKanBanLayout />
+          ) : null}
+        </div>
       </div>
       {/* peek overview */}
       <IssuePeekOverview />

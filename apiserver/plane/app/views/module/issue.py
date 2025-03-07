@@ -1,12 +1,7 @@
 # Python imports
 import json
 
-from django.db.models import (
-    F,
-    Func,
-    OuterRef,
-    Q,
-)
+from django.db.models import F, Func, OuterRef, Q, Subquery
 
 # Django Imports
 from django.utils import timezone
@@ -17,19 +12,16 @@ from django.views.decorators.gzip import gzip_page
 from rest_framework import status
 from rest_framework.response import Response
 
-from plane.app.permissions import (
-    ProjectEntityPermission,
-)
-from plane.app.serializers import (
-    ModuleIssueSerializer,
-)
-from plane.bgtasks.issue_activites_task import issue_activity
+from plane.app.permissions import allow_permission, ROLE
+from plane.app.serializers import ModuleIssueSerializer
+from plane.bgtasks.issue_activities_task import issue_activity
 from plane.db.models import (
     Issue,
-    IssueAttachment,
+    FileAsset,
     IssueLink,
     ModuleIssue,
     Project,
+    CycleIssue,
 )
 from plane.utils.grouper import (
     issue_group_values,
@@ -38,13 +30,11 @@ from plane.utils.grouper import (
 )
 from plane.utils.issue_filters import issue_filters
 from plane.utils.order_queryset import order_issue_queryset
-from plane.utils.paginator import (
-    GroupedOffsetPaginator,
-    SubGroupedOffsetPaginator,
-)
+from plane.utils.paginator import GroupedOffsetPaginator, SubGroupedOffsetPaginator
 
 # Module imports
 from .. import BaseViewSet
+
 
 class ModuleIssueViewSet(BaseViewSet):
     serializer_class = ModuleIssueSerializer
@@ -52,14 +42,7 @@ class ModuleIssueViewSet(BaseViewSet):
     webhook_event = "module_issue"
     bulk = True
 
-    filterset_fields = [
-        "issue__labels__id",
-        "issue__assignees__id",
-    ]
-
-    permission_classes = [
-        ProjectEntityPermission,
-    ]
+    filterset_fields = ["issue__labels__id", "issue__assignees__id"]
 
     def get_queryset(self):
         return (
@@ -67,10 +50,17 @@ class ModuleIssueViewSet(BaseViewSet):
                 project_id=self.kwargs.get("project_id"),
                 workspace__slug=self.kwargs.get("slug"),
                 issue_module__module_id=self.kwargs.get("module_id"),
+                issue_module__deleted_at__isnull=True,
             )
             .select_related("workspace", "project", "state", "parent")
             .prefetch_related("assignees", "labels", "issue_module__module")
-            .annotate(cycle_id=F("issue_cycle__cycle_id"))
+            .annotate(
+                cycle_id=Subquery(
+                    CycleIssue.objects.filter(
+                        issue=OuterRef("id"), deleted_at__isnull=True
+                    ).values("cycle_id")[:1]
+                )
+            )
             .annotate(
                 link_count=IssueLink.objects.filter(issue=OuterRef("id"))
                 .order_by()
@@ -78,17 +68,16 @@ class ModuleIssueViewSet(BaseViewSet):
                 .values("count")
             )
             .annotate(
-                attachment_count=IssueAttachment.objects.filter(
-                    issue=OuterRef("id")
+                attachment_count=FileAsset.objects.filter(
+                    issue_id=OuterRef("id"),
+                    entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
                 )
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
             )
             .annotate(
-                sub_issues_count=Issue.issue_objects.filter(
-                    parent=OuterRef("id")
-                )
+                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
                 .order_by()
                 .annotate(count=Func(F("id"), function="Count"))
                 .values("count")
@@ -96,6 +85,7 @@ class ModuleIssueViewSet(BaseViewSet):
         ).distinct()
 
     @method_decorator(gzip_page)
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def list(self, request, slug, project_id, module_id):
         filters = issue_filters(request.query_params, "GET")
         issue_queryset = self.get_queryset().filter(**filters)
@@ -103,8 +93,7 @@ class ModuleIssueViewSet(BaseViewSet):
 
         # Issue queryset
         issue_queryset, order_by_param = order_issue_queryset(
-            issue_queryset=issue_queryset,
-            order_by_param=order_by_param,
+            issue_queryset=issue_queryset, order_by_param=order_by_param
         )
 
         # Group by
@@ -113,9 +102,7 @@ class ModuleIssueViewSet(BaseViewSet):
 
         # issue queryset
         issue_queryset = issue_queryset_grouper(
-            queryset=issue_queryset,
-            group_by=group_by,
-            sub_group_by=sub_group_by,
+            queryset=issue_queryset, group_by=group_by, sub_group_by=sub_group_by
         )
 
         if group_by:
@@ -135,9 +122,7 @@ class ModuleIssueViewSet(BaseViewSet):
                         order_by=order_by_param,
                         queryset=issue_queryset,
                         on_results=lambda issues: issue_on_results(
-                            group_by=group_by,
-                            issues=issues,
-                            sub_group_by=sub_group_by,
+                            group_by=group_by, issues=issues, sub_group_by=sub_group_by
                         ),
                         paginator_cls=SubGroupedOffsetPaginator,
                         group_by_fields=issue_group_values(
@@ -155,10 +140,10 @@ class ModuleIssueViewSet(BaseViewSet):
                         group_by_field_name=group_by,
                         sub_group_by_field_name=sub_group_by,
                         count_filter=Q(
-                            Q(issue_inbox__status=1)
-                            | Q(issue_inbox__status=-1)
-                            | Q(issue_inbox__status=2)
-                            | Q(issue_inbox__isnull=True),
+                            Q(issue_intake__status=1)
+                            | Q(issue_intake__status=-1)
+                            | Q(issue_intake__status=2)
+                            | Q(issue_intake__isnull=True),
                             archived_at__isnull=True,
                             is_draft=False,
                         ),
@@ -171,9 +156,7 @@ class ModuleIssueViewSet(BaseViewSet):
                     order_by=order_by_param,
                     queryset=issue_queryset,
                     on_results=lambda issues: issue_on_results(
-                        group_by=group_by,
-                        issues=issues,
-                        sub_group_by=sub_group_by,
+                        group_by=group_by, issues=issues, sub_group_by=sub_group_by
                     ),
                     paginator_cls=GroupedOffsetPaginator,
                     group_by_fields=issue_group_values(
@@ -184,10 +167,10 @@ class ModuleIssueViewSet(BaseViewSet):
                     ),
                     group_by_field_name=group_by,
                     count_filter=Q(
-                        Q(issue_inbox__status=1)
-                        | Q(issue_inbox__status=-1)
-                        | Q(issue_inbox__status=2)
-                        | Q(issue_inbox__isnull=True),
+                        Q(issue_intake__status=1)
+                        | Q(issue_intake__status=-1)
+                        | Q(issue_intake__status=2)
+                        | Q(issue_intake__isnull=True),
                         archived_at__isnull=True,
                         is_draft=False,
                     ),
@@ -203,13 +186,13 @@ class ModuleIssueViewSet(BaseViewSet):
                 ),
             )
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     # create multiple issues inside a module
     def create_module_issues(self, request, slug, project_id, module_id):
         issues = request.data.get("issues", [])
         if not issues:
             return Response(
-                {"error": "Issues are required"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Issues are required"}, status=status.HTTP_400_BAD_REQUEST
             )
         project = Project.objects.get(pk=project_id)
         _ = ModuleIssue.objects.bulk_create(
@@ -244,12 +227,12 @@ class ModuleIssueViewSet(BaseViewSet):
         ]
         return Response({"message": "success"}, status=status.HTTP_201_CREATED)
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     # add multiple module inside an issue and remove multiple modules from an issue
     def create_issue_modules(self, request, slug, project_id, issue_id):
         modules = request.data.get("modules", [])
         removed_modules = request.data.get("removed_modules", [])
         project = Project.objects.get(pk=project_id)
-
 
         if modules:
             _ = ModuleIssue.objects.bulk_create(
@@ -284,7 +267,7 @@ class ModuleIssueViewSet(BaseViewSet):
             ]
 
         for module_id in removed_modules:
-            module_issue = ModuleIssue.objects.get(
+            module_issue = ModuleIssue.objects.filter(
                 workspace__slug=slug,
                 project_id=project_id,
                 module_id=module_id,
@@ -297,7 +280,7 @@ class ModuleIssueViewSet(BaseViewSet):
                 issue_id=str(issue_id),
                 project_id=str(project_id),
                 current_instance=json.dumps(
-                    {"module_name": module_issue.module.name}
+                    {"module_name": module_issue.first().module.name}
                 ),
                 epoch=int(timezone.now().timestamp()),
                 notification=True,
@@ -307,8 +290,9 @@ class ModuleIssueViewSet(BaseViewSet):
 
         return Response({"message": "success"}, status=status.HTTP_201_CREATED)
 
+    @allow_permission([ROLE.ADMIN, ROLE.MEMBER])
     def destroy(self, request, slug, project_id, module_id, issue_id):
-        module_issue = ModuleIssue.objects.get(
+        module_issue = ModuleIssue.objects.filter(
             workspace__slug=slug,
             project_id=project_id,
             module_id=module_id,
@@ -321,7 +305,7 @@ class ModuleIssueViewSet(BaseViewSet):
             issue_id=str(issue_id),
             project_id=str(project_id),
             current_instance=json.dumps(
-                {"module_name": module_issue.module.name}
+                {"module_name": module_issue.first().module.name}
             ),
             epoch=int(timezone.now().timestamp()),
             notification=True,

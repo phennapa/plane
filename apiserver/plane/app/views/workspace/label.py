@@ -9,10 +9,9 @@ from plane.db.models import Label
 from plane.app.permissions import WorkspaceViewerPermission
 from plane.utils.cache import cache_response
 
+
 class WorkspaceLabelsEndpoint(BaseAPIView):
-    permission_classes = [
-        WorkspaceViewerPermission,
-    ]
+    permission_classes = [WorkspaceViewerPermission]
 
     @cache_response(60 * 60 * 2)
     def get(self, request, slug):

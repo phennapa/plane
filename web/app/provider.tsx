@@ -4,7 +4,8 @@ import { FC, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useTheme, ThemeProvider } from "next-themes";
 import { SWRConfig } from "swr";
-// ui
+// Plane Imports
+import { TranslationProvider } from "@plane/i18n";
 import { Toast } from "@plane/ui";
 // constants
 import { SWR_CONFIG } from "@/constants/swr-config";
@@ -12,6 +13,8 @@ import { SWR_CONFIG } from "@/constants/swr-config";
 import { resolveGeneralTheme } from "@/helpers/theme.helper";
 // nprogress
 import { AppProgressBar } from "@/lib/n-progress";
+// polyfills
+import "@/lib/polyfills";
 // mobx store provider
 import { StoreProvider } from "@/lib/store-context";
 // wrappers
@@ -19,7 +22,7 @@ import { InstanceWrapper } from "@/lib/wrappers";
 // dynamic imports
 const StoreWrapper = dynamic(() => import("@/lib/wrappers/store-wrapper"), { ssr: false });
 const PostHogProvider = dynamic(() => import("@/lib/posthog-provider"), { ssr: false });
-const CrispWrapper = dynamic(() => import("@/lib/wrappers/crisp-wrapper"), { ssr: false });
+const IntercomProvider = dynamic(() => import("@/lib/intercom-provider"), { ssr: false });
 
 export interface IAppProvider {
   children: ReactNode;
@@ -39,15 +42,17 @@ export const AppProvider: FC<IAppProvider> = (props) => {
       <StoreProvider>
         <ThemeProvider themes={["light", "dark", "light-contrast", "dark-contrast", "custom"]} defaultTheme="system">
           <ToastWithTheme />
-          <InstanceWrapper>
+          <TranslationProvider>
             <StoreWrapper>
-              <CrispWrapper>
-                <PostHogProvider>
-                  <SWRConfig value={SWR_CONFIG}>{children}</SWRConfig>
-                </PostHogProvider>
-              </CrispWrapper>
+              <InstanceWrapper>
+                <IntercomProvider>
+                  <PostHogProvider>
+                    <SWRConfig value={SWR_CONFIG}>{children}</SWRConfig>
+                  </PostHogProvider>
+                </IntercomProvider>
+              </InstanceWrapper>
             </StoreWrapper>
-          </InstanceWrapper>
+          </TranslationProvider>
         </ThemeProvider>
       </StoreProvider>
     </>

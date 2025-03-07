@@ -9,12 +9,14 @@ import { Tooltip, FavoriteStar } from "@plane/ui";
 // components
 import { DeleteProjectViewModal, CreateUpdateProjectViewModal, ViewQuickActions } from "@/components/views";
 // constants
-import { EUserProjectRoles } from "@/constants/project";
 import { EViewAccess } from "@/constants/views";
 // helpers
 import { calculateTotalFilters } from "@/helpers/filter.helper";
+import { getPublishViewLink } from "@/helpers/project-views.helpers";
 // hooks
-import { useMember, useProjectView, useUser } from "@/hooks/store";
+import { useMember, useProjectView, useUserPermissions } from "@/hooks/store";
+import { PublishViewModal } from "@/plane-web/components/views/publish";
+import { EUserPermissions, EUserPermissionsLevel } from "@/plane-web/constants/user-permissions";
 import { ButtonAvatars } from "../dropdowns/member/avatar";
 
 type Props = {
@@ -27,21 +29,26 @@ export const ViewListItemAction: FC<Props> = observer((props) => {
   // states
   const [createUpdateViewModal, setCreateUpdateViewModal] = useState(false);
   const [deleteViewModal, setDeleteViewModal] = useState(false);
+  const [isPublishModalOpen, setPublishModalOpen] = useState<boolean>(false);
   // router
   const { workspaceSlug, projectId } = useParams();
   // store
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
+
   const { addViewToFavorites, removeViewFromFavorites } = useProjectView();
   const { getUserDetails } = useMember();
 
   // derived values
-  const isEditingAllowed = !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER;
+  const isEditingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
 
   const totalFilters = calculateTotalFilters(view.filters ?? {});
 
   const access = view.access;
+
+  const publishLink = getPublishViewLink(view?.anchor);
 
   // handlers
   const handleAddToFavorites = () => {
@@ -60,6 +67,7 @@ export const ViewListItemAction: FC<Props> = observer((props) => {
 
   return (
     <>
+      <PublishViewModal isOpen={isPublishModalOpen} onClose={() => setPublishModalOpen(false)} view={view} />
       {workspaceSlug && projectId && view && (
         <CreateUpdateProjectViewModal
           isOpen={createUpdateViewModal}
@@ -80,6 +88,18 @@ export const ViewListItemAction: FC<Props> = observer((props) => {
         </Tooltip>
       </div>
 
+      {view?.anchor && publishLink ? (
+        <div
+          className="px-3 py-1.5 bg-green-500/20 text-green-500 rounded text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+          onClick={() => setPublishModalOpen(true)}
+        >
+          <span className="flex-shrink-0 rounded-full size-1.5 bg-green-500" />
+          Live
+        </div>
+      ) : (
+        <></>
+      )}
+
       {/* created by */}
       {<ButtonAvatars showTooltip={false} userIds={ownedByDetails?.id ?? []} />}
 
@@ -95,12 +115,14 @@ export const ViewListItemAction: FC<Props> = observer((props) => {
         />
       )}
       {projectId && workspaceSlug && (
-        <ViewQuickActions
-          parentRef={parentRef}
-          projectId={projectId.toString()}
-          view={view}
-          workspaceSlug={workspaceSlug.toString()}
-        />
+        <div className="hidden md:block">
+          <ViewQuickActions
+            parentRef={parentRef}
+            projectId={projectId.toString()}
+            view={view}
+            workspaceSlug={workspaceSlug.toString()}
+          />
+        </div>
       )}
     </>
   );

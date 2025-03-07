@@ -11,7 +11,6 @@ from plane.app.views import (
     IssueActivityEndpoint,
     IssueArchiveViewSet,
     IssueCommentViewSet,
-    IssueDraftViewSet,
     IssueListEndpoint,
     IssueReactionViewSet,
     IssueRelationViewSet,
@@ -19,8 +18,14 @@ from plane.app.views import (
     IssueUserDisplayPropertyEndpoint,
     IssueViewSet,
     LabelViewSet,
-    BulkIssueOperationsEndpoint,
     BulkArchiveIssuesEndpoint,
+    DeletedIssuesListViewSet,
+    IssuePaginatedViewSet,
+    IssueDetailEndpoint,
+    IssueAttachmentV2Endpoint,
+    IssueBulkUpdateDateEndpoint,
+    IssueVersionEndpoint,
+    IssueDescriptionVersionEndpoint,
 )
 
 urlpatterns = [
@@ -31,13 +36,20 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/",
-        IssueViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues-detail/",
+        IssueDetailEndpoint.as_view(),
+        name="project-issue-detail",
+    ),
+    # updated v1 paginated issues
+    # updated v2 paginated issues
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/v2/issues/",
+        IssuePaginatedViewSet.as_view({"get": "list"}),
+        name="project-issues-paginated",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:pk>/",
@@ -53,12 +65,7 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issue-labels/",
-        LabelViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        LabelViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-labels",
     ),
     path(
@@ -96,12 +103,7 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/issue-links/",
-        IssueLinkViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueLinkViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-links",
     ),
     path(
@@ -126,6 +128,18 @@ urlpatterns = [
         IssueAttachmentEndpoint.as_view(),
         name="project-issue-attachments",
     ),
+    # V2 Attachments
+    path(
+        "assets/v2/workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/attachments/",
+        IssueAttachmentV2Endpoint.as_view(),
+        name="project-issue-attachments",
+    ),
+    path(
+        "assets/v2/workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/attachments/<uuid:pk>/",
+        IssueAttachmentV2Endpoint.as_view(),
+        name="project-issue-attachments",
+    ),
+    ## Export Issues
     path(
         "workspaces/<str:slug>/export-issues/",
         ExportIssuesEndpoint.as_view(),
@@ -142,12 +156,7 @@ urlpatterns = [
     ## IssueComments
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/comments/",
-        IssueCommentViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueCommentViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-comment",
     ),
     path(
@@ -166,12 +175,7 @@ urlpatterns = [
     # Issue Subscribers
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/issue-subscribers/",
-        IssueSubscriberViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueSubscriberViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-subscribers",
     ),
     path(
@@ -182,11 +186,7 @@ urlpatterns = [
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/subscribe/",
         IssueSubscriberViewSet.as_view(
-            {
-                "get": "subscription_status",
-                "post": "subscribe",
-                "delete": "unsubscribe",
-            }
+            {"get": "subscription_status", "post": "subscribe", "delete": "unsubscribe"}
         ),
         name="project-issue-subscribers",
     ),
@@ -194,70 +194,44 @@ urlpatterns = [
     # Issue Reactions
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/reactions/",
-        IssueReactionViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueReactionViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-reactions",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/reactions/<str:reaction_code>/",
-        IssueReactionViewSet.as_view(
-            {
-                "delete": "destroy",
-            }
-        ),
+        IssueReactionViewSet.as_view({"delete": "destroy"}),
         name="project-issue-reactions",
     ),
     ## End Issue Reactions
     # Comment Reactions
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/comments/<uuid:comment_id>/reactions/",
-        CommentReactionViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        CommentReactionViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-comment-reactions",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/comments/<uuid:comment_id>/reactions/<str:reaction_code>/",
-        CommentReactionViewSet.as_view(
-            {
-                "delete": "destroy",
-            }
-        ),
+        CommentReactionViewSet.as_view({"delete": "destroy"}),
         name="project-issue-comment-reactions",
     ),
     ## End Comment Reactions
-    ## IssueProperty
+    ## IssueUserProperty
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/user-properties/",
         IssueUserDisplayPropertyEndpoint.as_view(),
         name="project-issue-display-properties",
     ),
-    ## IssueProperty End
+    ## IssueUserProperty End
     ## Issue Archives
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/archived-issues/",
-        IssueArchiveViewSet.as_view(
-            {
-                "get": "list",
-            }
-        ),
+        IssueArchiveViewSet.as_view({"get": "list"}),
         name="project-issue-archive",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:pk>/archive/",
         IssueArchiveViewSet.as_view(
-            {
-                "get": "retrieve",
-                "post": "archive",
-                "delete": "unarchive",
-            }
+            {"get": "retrieve", "post": "archive", "delete": "unarchive"}
         ),
         name="project-issue-archive-unarchive",
     ),
@@ -265,49 +239,43 @@ urlpatterns = [
     ## Issue Relation
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/issue-relation/",
-        IssueRelationViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        IssueRelationViewSet.as_view({"get": "list", "post": "create"}),
         name="issue-relation",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/remove-relation/",
-        IssueRelationViewSet.as_view(
-            {
-                "post": "remove_relation",
-            }
-        ),
+        IssueRelationViewSet.as_view({"post": "remove_relation"}),
         name="issue-relation",
     ),
     ## End Issue Relation
-    ## Issue Drafts
     path(
-        "workspaces/<str:slug>/projects/<uuid:project_id>/issue-drafts/",
-        IssueDraftViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
-        name="project-issue-draft",
+        "workspaces/<str:slug>/projects/<uuid:project_id>/deleted-issues/",
+        DeletedIssuesListViewSet.as_view(),
+        name="deleted-issues",
     ),
     path(
-        "workspaces/<str:slug>/projects/<uuid:project_id>/issue-drafts/<uuid:pk>/",
-        IssueDraftViewSet.as_view(
-            {
-                "get": "retrieve",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }
-        ),
-        name="project-issue-draft",
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issue-dates/",
+        IssueBulkUpdateDateEndpoint.as_view(),
+        name="project-issue-dates",
     ),
     path(
-        "workspaces/<str:slug>/projects/<uuid:project_id>/bulk-operation-issues/",
-        BulkIssueOperationsEndpoint.as_view(),
-        name="bulk-operations-issues",
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/versions/",
+        IssueVersionEndpoint.as_view(),
+        name="page-versions",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/versions/<uuid:pk>/",
+        IssueVersionEndpoint.as_view(),
+        name="page-versions",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/description-versions/",
+        IssueDescriptionVersionEndpoint.as_view(),
+        name="page-versions",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/issues/<uuid:issue_id>/description-versions/<uuid:pk>/",
+        IssueDescriptionVersionEndpoint.as_view(),
+        name="page-versions",
     ),
 ]

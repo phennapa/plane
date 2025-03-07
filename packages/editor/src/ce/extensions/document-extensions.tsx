@@ -1,18 +1,37 @@
-import { SlashCommand } from "@/extensions";
-// hooks
-import { TFileHandler } from "@/hooks/use-editor";
+import { HocuspocusProvider } from "@hocuspocus/provider";
+import { Extensions } from "@tiptap/core";
+import { AnyExtension } from "@tiptap/core";
+import { SlashCommands } from "@/extensions";
 // plane editor types
 import { TIssueEmbedConfig } from "@/plane-editor/types";
+// types
+import { TExtensions, TUserDetails } from "@/types";
 
 type Props = {
-  fileHandler: TFileHandler;
+  disabledExtensions?: TExtensions[];
   issueEmbedConfig: TIssueEmbedConfig | undefined;
+  provider: HocuspocusProvider;
+  userDetails: TUserDetails;
 };
 
-export const DocumentEditorAdditionalExtensions = (props: Props) => {
-  const { fileHandler } = props;
+type ExtensionConfig = {
+  isEnabled: (disabledExtensions: TExtensions[]) => boolean;
+  getExtension: (props: Props) => AnyExtension;
+};
 
-  const extensions = [SlashCommand(fileHandler.upload)];
+const extensionRegistry: ExtensionConfig[] = [
+  {
+    isEnabled: (disabledExtensions) => !disabledExtensions.includes("slash-commands"),
+    getExtension: () => SlashCommands({}),
+  },
+];
 
-  return extensions;
+export const DocumentEditorAdditionalExtensions = (_props: Props) => {
+  const { disabledExtensions = [] } = _props;
+
+  const documentExtensions = extensionRegistry
+    .filter((config) => config.isEnabled(disabledExtensions))
+    .map((config) => config.getExtension(_props));
+
+  return documentExtensions;
 };

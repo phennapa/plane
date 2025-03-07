@@ -5,17 +5,14 @@ from .issue import (
     IssueSerializer,
     LabelSerializer,
     IssueLinkSerializer,
-    IssueAttachmentSerializer,
     IssueCommentSerializer,
     IssueAttachmentSerializer,
     IssueActivitySerializer,
     IssueExpandSerializer,
+    IssueLiteSerializer,
 )
 from .state import StateLiteSerializer, StateSerializer
 from .cycle import CycleSerializer, CycleIssueSerializer, CycleLiteSerializer
-from .module import (
-    ModuleSerializer,
-    ModuleIssueSerializer,
-    ModuleLiteSerializer,
-)
-from .inbox import InboxIssueSerializer
+from .module import ModuleSerializer, ModuleIssueSerializer, ModuleLiteSerializer
+from .intake import IntakeIssueSerializer
+from .estimate import EstimatePointSerializer

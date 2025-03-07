@@ -2,15 +2,13 @@ import React from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // hook
+import { EIssuesStoreType } from "@plane/constants";
 import { ModuleIssueQuickActions } from "@/components/issues";
-import { EIssuesStoreType } from "@/constants/issue";
 import { useIssues } from "@/hooks/store";
 // components
 // types
 // constants
 import { BaseKanBanRoot } from "../base-kanban-root";
-
-export interface IModuleKanBanLayout {}
 
 export const ModuleKanBanLayout: React.FC = observer(() => {
   const { workspaceSlug, projectId, moduleId } = useParams();

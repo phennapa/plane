@@ -14,6 +14,7 @@ import { TCycleGroups } from "@plane/types";
 import { ContrastIcon, CycleGroupIcon } from "@plane/ui";
 // store hooks
 import { useCycle } from "@/hooks/store";
+import { usePlatformOS } from "@/hooks/use-platform-os";
 // types
 
 type DropdownOptions =
@@ -29,10 +30,12 @@ type CycleOptionsProps = {
   referenceElement: HTMLButtonElement | null;
   placement: Placement | undefined;
   isOpen: boolean;
+  canRemoveCycle: boolean;
+  currentCycleId?: string;
 };
 
 export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
-  const { projectId, isOpen, referenceElement, placement } = props;
+  const { projectId, isOpen, referenceElement, placement, canRemoveCycle, currentCycleId } = props;
   //state hooks
   const [query, setQuery] = useState("");
   const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
@@ -40,13 +43,16 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
   // store hooks
   const { workspaceSlug } = useParams();
   const { getProjectCycleIds, fetchAllCycles, getCycleById } = useCycle();
+  const { isMobile } = usePlatformOS();
 
   useEffect(() => {
     if (isOpen) {
       onOpen();
-      inputRef.current && inputRef.current.focus();
+      if (!isMobile) {
+        inputRef.current && inputRef.current.focus();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   // popper-js init
   const { styles, attributes } = usePopper(referenceElement, popperElement, {
@@ -63,6 +69,7 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
 
   const cycleIds = (getProjectCycleIds(projectId) ?? [])?.filter((cycleId) => {
     const cycleDetails = getCycleById(cycleId);
+    if (currentCycleId && currentCycleId === cycleId) return false;
     return cycleDetails?.status ? (cycleDetails?.status.toLowerCase() != "completed" ? true : false) : true;
   });
 
@@ -92,16 +99,19 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
       ),
     };
   });
-  options?.unshift({
-    value: null,
-    query: "No cycle",
-    content: (
-      <div className="flex items-center gap-2">
-        <ContrastIcon className="h-3 w-3 flex-shrink-0" />
-        <span className="flex-grow truncate">No cycle</span>
-      </div>
-    ),
-  });
+
+  if (canRemoveCycle) {
+    options?.unshift({
+      value: null,
+      query: "No cycle",
+      content: (
+        <div className="flex items-center gap-2">
+          <ContrastIcon className="h-3 w-3 flex-shrink-0" />
+          <span className="flex-grow truncate">No cycle</span>
+        </div>
+      ),
+    });
+  }
 
   const filteredOptions =
     query === "" ? options : options?.filter((o) => o.query.toLowerCase().includes(query.toLowerCase()));

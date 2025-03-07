@@ -6,13 +6,13 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Copy, ExternalLink, Link, Pencil, Trash2 } from "lucide-react";
 // types
+import { EIssuesStoreType } from "@plane/constants";
 import { TIssue } from "@plane/types";
 // ui
 import { ArchiveIcon, ContextMenu, CustomMenu, TContextMenuItem, TOAST_TYPE, setToast } from "@plane/ui";
 // components
 import { ArchiveIssueModal, CreateUpdateIssueModal, DeleteIssueModal } from "@/components/issues";
 // constants
-import { EIssuesStoreType } from "@/constants/issue";
 import { ARCHIVABLE_STATE_GROUPS } from "@/constants/state";
 // helpers
 import { cn } from "@/helpers/common.helper";
@@ -67,6 +67,7 @@ export const AllIssueQuickActions: React.FC<IQuickActionProps> = observer((props
     {
       ...issue,
       name: `${issue.name} (copy)`,
+      sourceIssueId: issue.id,
     },
     ["id"]
   );
@@ -152,7 +153,7 @@ export const AllIssueQuickActions: React.FC<IQuickActionProps> = observer((props
         onSubmit={async (data) => {
           if (issueToEdit && handleUpdate) await handleUpdate(data);
         }}
-        storeType={EIssuesStoreType.PROJECT}
+        storeType={EIssuesStoreType.GLOBAL}
       />
       <ContextMenu parentRef={parentRef} items={MENU_ITEMS} />
       <CustomMenu
@@ -162,6 +163,7 @@ export const AllIssueQuickActions: React.FC<IQuickActionProps> = observer((props
         placement={placements}
         menuItemsClassName="z-[14]"
         maxHeight="lg"
+        useCaptureForOutsideClick
         closeOnSelect
       >
         {MENU_ITEMS.map((item) => {

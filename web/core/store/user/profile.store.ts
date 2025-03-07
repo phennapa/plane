@@ -58,6 +58,7 @@ export class ProfileStore implements IUserProfileStore {
     has_billing_address: false,
     created_at: "",
     updated_at: "",
+    language: ""
   };
 
   // services
@@ -81,11 +82,11 @@ export class ProfileStore implements IUserProfileStore {
 
   // helper action
   mutateUserProfile = (data: Partial<TUserProfile>) => {
-    if (!data) return
+    if (!data) return;
     Object.entries(data).forEach(([key, value]) => {
       if (key in this.data) set(this.data, key, value);
-    })
-  }
+    });
+  };
 
   // actions
   /**
@@ -129,7 +130,7 @@ export class ProfileStore implements IUserProfileStore {
       }
       const userProfile = await this.userService.updateCurrentUserProfile(data);
       return userProfile;
-    } catch (error) {
+    } catch {
       if (currentUserProfileData) {
         this.mutateUserProfile(currentUserProfileData);
       }

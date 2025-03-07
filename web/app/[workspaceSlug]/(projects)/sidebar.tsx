@@ -1,5 +1,8 @@
-import { FC, useRef } from "react";
+import { FC, useEffect, useRef } from "react";
+import isEmpty from "lodash/isEmpty";
 import { observer } from "mobx-react";
+// plane helpers
+import { useOutsideClickDetector } from "@plane/hooks";
 // components
 import {
   SidebarDropdown,
@@ -10,20 +13,31 @@ import {
   SidebarWorkspaceMenu,
 } from "@/components/workspace";
 // helpers
+import { SidebarFavoritesMenu } from "@/components/workspace/sidebar/favorites/favorites-menu";
 import { cn } from "@/helpers/common.helper";
 // hooks
-import { useAppTheme } from "@/hooks/store";
-import useOutsideClickDetector from "@/hooks/use-outside-click-detector";
+import { useAppTheme, useUserPermissions } from "@/hooks/store";
+import { useFavorite } from "@/hooks/store/use-favorite";
+import useSize from "@/hooks/use-window-size";
 // plane web components
 import { SidebarAppSwitcher } from "@/plane-web/components/sidebar";
+import { SidebarTeamsList } from "@/plane-web/components/workspace/sidebar/teams-sidebar-list";
+import { EUserPermissions, EUserPermissionsLevel } from "@/plane-web/constants/user-permissions";
 
-export interface IAppSidebar {}
-
-export const AppSidebar: FC<IAppSidebar> = observer(() => {
+export const AppSidebar: FC = observer(() => {
   // store hooks
+  const { allowPermissions } = useUserPermissions();
   const { toggleSidebar, sidebarCollapsed } = useAppTheme();
+  const { groupedFavorites } = useFavorite();
+  const windowSize = useSize();
   // refs
   const ref = useRef<HTMLDivElement>(null);
+
+  // derived values
+  const canPerformWorkspaceMemberActions = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.WORKSPACE
+  );
 
   useOutsideClickDetector(ref, () => {
     if (sidebarCollapsed === false) {
@@ -32,6 +46,13 @@ export const AppSidebar: FC<IAppSidebar> = observer(() => {
       }
     }
   });
+
+  useEffect(() => {
+    if (windowSize[0] < 768 && !sidebarCollapsed) toggleSidebar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [windowSize]);
+
+  const isFavoriteEmpty = isEmpty(groupedFavorites);
 
   return (
     <div
@@ -44,32 +65,50 @@ export const AppSidebar: FC<IAppSidebar> = observer(() => {
     >
       <div
         ref={ref}
-        className={cn("size-full flex flex-col flex-1 p-4 pb-0", {
-          "p-2": sidebarCollapsed,
+        className={cn("size-full flex flex-col flex-1 pt-4 pb-0", {
+          "p-2 pt-4": sidebarCollapsed,
         })}
       >
-        <SidebarDropdown />
-        <div className="flex-shrink-0 h-4" />
-        <SidebarAppSwitcher />
-        <SidebarQuickActions />
+        <div
+          className={cn("px-2", {
+            "px-4": !sidebarCollapsed,
+          })}
+        >
+          {/* Workspace switcher and settings */}
+          <SidebarDropdown />
+          <div className="flex-shrink-0 h-4" />
+          {/* App switcher */}
+          {canPerformWorkspaceMemberActions && <SidebarAppSwitcher />}
+          {/* Quick actions */}
+          <SidebarQuickActions />
+        </div>
         <hr
-          className={cn("flex-shrink-0 border-custom-sidebar-border-300 h-[0.5px] w-3/5 mx-auto my-2", {
+          className={cn("flex-shrink-0 border-custom-sidebar-border-300 h-[0.5px] w-3/5 mx-auto my-1", {
             "opacity-0": !sidebarCollapsed,
           })}
         />
-        <SidebarUserMenu />
-        <hr
-          className={cn("flex-shrink-0 border-custom-sidebar-border-300 h-[0.5px] w-3/5 mx-auto my-2", {
-            "opacity-0": !sidebarCollapsed,
+        <div
+          className={cn("overflow-x-hidden scrollbar-sm h-full w-full overflow-y-auto px-2 py-0.5", {
+            "vertical-scrollbar px-4": !sidebarCollapsed,
           })}
-        />
-        <SidebarWorkspaceMenu />
-        <hr
-          className={cn("flex-shrink-0 border-custom-sidebar-border-300 h-[0.5px] w-3/5 mx-auto my-2", {
-            "opacity-0": !sidebarCollapsed,
-          })}
-        />
-        <SidebarProjectsList />
+        >
+          {/* User Menu */}
+          <SidebarUserMenu />
+          {/* Workspace Menu */}
+          <SidebarWorkspaceMenu />
+          <hr
+            className={cn("flex-shrink-0 border-custom-sidebar-border-300 h-[0.5px] w-3/5 mx-auto my-1", {
+              "opacity-0": !sidebarCollapsed,
+            })}
+          />
+          {/* Favorites Menu */}
+          {canPerformWorkspaceMemberActions && !isFavoriteEmpty && <SidebarFavoritesMenu />}
+          {/* Teams List */}
+          <SidebarTeamsList />
+          {/* Projects List */}
+          <SidebarProjectsList />
+        </div>
+        {/* Help Section */}
         <SidebarHelpSection />
       </div>
     </div>

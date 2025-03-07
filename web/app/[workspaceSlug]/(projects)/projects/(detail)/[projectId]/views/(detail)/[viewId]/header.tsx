@@ -1,25 +1,22 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Earth, Lock } from "lucide-react";
+import { Layers, Lock } from "lucide-react";
+// plane constants
+import { EIssueLayoutTypes, EIssueFilterType, EIssuesStoreType } from "@plane/constants";
 // types
 import { IIssueDisplayFilterOptions, IIssueDisplayProperties, IIssueFilterOptions } from "@plane/types";
 // ui
-import { Breadcrumbs, Button, CustomMenu, PhotoFilterIcon, Tooltip } from "@plane/ui";
+import { Breadcrumbs, Button, CustomMenu, Tooltip, Header } from "@plane/ui";
 // components
 import { BreadcrumbLink, Logo } from "@/components/common";
 import { DisplayFiltersSelection, FiltersDropdown, FilterSelection, LayoutSelection } from "@/components/issues";
 // constants
-import {
-  EIssuesStoreType,
-  EIssueFilterType,
-  EIssueLayoutTypes,
-  ISSUE_DISPLAY_FILTERS_BY_LAYOUT,
-} from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
+import { ViewQuickActions } from "@/components/views";
+import { ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@/constants/issue";
 import { EViewAccess } from "@/constants/views";
 // helpers
 import { isIssueFilterActive } from "@/helpers/filter.helper";
@@ -34,10 +31,15 @@ import {
   useProject,
   useProjectState,
   useProjectView,
-  useUser,
+  useUserPermissions,
 } from "@/hooks/store";
+// plane web
+import { ProjectBreadcrumb } from "@/plane-web/components/breadcrumbs";
+import { EUserPermissions, EUserPermissionsLevel } from "@/plane-web/constants/user-permissions";
 
 export const ProjectViewIssuesHeader: React.FC = observer(() => {
+  // refs
+  const parentRef = useRef(null);
   // router
   const { workspaceSlug, projectId, viewId } = useParams();
   // store hooks
@@ -46,9 +48,8 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
   } = useIssues(EIssuesStoreType.PROJECT_VIEW);
   const { setTrackElement } = useEventTracker();
   const { toggleCreateIssueModal } = useCommandPalette();
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
+
   const { currentProjectDetails, loader } = useProject();
   const { projectViewIds, getViewById } = useProjectView();
   const { projectStates } = useProjectState();
@@ -130,36 +131,25 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
 
   const viewDetails = viewId ? getViewById(viewId.toString()) : null;
 
-  const canUserCreateIssue =
-    currentProjectRole && [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER].includes(currentProjectRole);
+  const canUserCreateIssue = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
+
+  if (!viewDetails) return;
 
   return (
-    <div className="relative z-[15] flex h-[3.75rem] w-full items-center justify-between gap-x-2 gap-y-4 bg-custom-sidebar-background-100 p-4">
-      <div className="flex items-center gap-2">
-        <Breadcrumbs isLoading={loader}>
-          <Breadcrumbs.BreadcrumbItem
-            type="text"
-            link={
-              <BreadcrumbLink
-                href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/issues`}
-                label={currentProjectDetails?.name ?? "Project"}
-                icon={
-                  currentProjectDetails && (
-                    <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
-                      <Logo logo={currentProjectDetails?.logo_props} size={16} />
-                    </span>
-                  )
-                }
-              />
-            }
-          />
+    <Header>
+      <Header.LeftItem>
+        <Breadcrumbs isLoading={loader === "init-loader"}>
+          <ProjectBreadcrumb />
           <Breadcrumbs.BreadcrumbItem
             type="text"
             link={
               <BreadcrumbLink
                 href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/views`}
                 label="Views"
-                icon={<PhotoFilterIcon className="h-4 w-4 text-custom-text-300" />}
+                icon={<Layers className="h-4 w-4 text-custom-text-300" />}
               />
             }
           />
@@ -172,7 +162,7 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
                     {viewDetails?.logo_props?.in_use ? (
                       <Logo logo={viewDetails.logo_props} size={12} type="lucide" />
                     ) : (
-                      <PhotoFilterIcon height={12} width={12} />
+                      <Layers height={12} width={12} />
                     )}
                     {viewDetails?.name && truncateText(viewDetails.name, 40)}
                   </>
@@ -194,7 +184,7 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
                         {view?.logo_props?.in_use ? (
                           <Logo logo={view.logo_props} size={12} type="lucide" />
                         ) : (
-                          <PhotoFilterIcon height={12} width={12} />
+                          <Layers height={12} width={12} />
                         )}
                         {truncateText(view.name, 40)}
                       </Link>
@@ -206,14 +196,27 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
           />
         </Breadcrumbs>
 
-        <div className="cursor-default text-custom-text-300">
-          <Tooltip tooltipContent={viewDetails?.access === EViewAccess.PUBLIC ? "Public" : "Private"}>
-            {viewDetails?.access === EViewAccess.PUBLIC ? <Earth className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-          </Tooltip>
+        {viewDetails?.access === EViewAccess.PRIVATE ? (
+          <div className="cursor-default text-custom-text-300">
+            <Tooltip tooltipContent={"Private"}>
+              <Lock className="h-4 w-4" />
+            </Tooltip>
+          </div>
+        ) : (
+          <></>
+        )}
+
+        <div className="hidden md:block">
+          <ViewQuickActions
+            parentRef={parentRef}
+            projectId={projectId.toString()}
+            view={viewDetails}
+            workspaceSlug={workspaceSlug.toString()}
+          />
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {!viewDetails?.is_locked && (
+      </Header.LeftItem>
+      <Header.RightItem>
+        {!viewDetails?.is_locked ? (
           <>
             <LayoutSelection
               layouts={[
@@ -241,6 +244,7 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
                 layoutDisplayFiltersOptions={
                   activeLayout ? ISSUE_DISPLAY_FILTERS_BY_LAYOUT.issues[activeLayout] : undefined
                 }
+                projectId={projectId.toString()}
                 labels={projectLabels}
                 memberIds={projectMemberIds ?? undefined}
                 states={projectStates}
@@ -262,8 +266,10 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
               />
             </FiltersDropdown>
           </>
+        ) : (
+          <></>
         )}
-        {canUserCreateIssue && (
+        {canUserCreateIssue ? (
           <Button
             onClick={() => {
               setTrackElement("PROJECT_VIEW_PAGE_HEADER");
@@ -271,10 +277,12 @@ export const ProjectViewIssuesHeader: React.FC = observer(() => {
             }}
             size="sm"
           >
-            Add Issue
+            Add issue
           </Button>
+        ) : (
+          <></>
         )}
-      </div>
-    </div>
+      </Header.RightItem>
+    </Header>
   );
 });
