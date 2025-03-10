@@ -102,10 +102,12 @@ services:
       - web
 
   live:
-    image: ${DOCKERHUB_USER:-makeplane}/plane-live:${APP_RELEASE:-stable}
-    command: node live/dist/server.js live
-    environment:
-      <<: [*live-env]
+    <<: *app-env
+    image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-live:${APP_RELEASE:-stable}
+    platform: ${DOCKER_PLATFORM:-}
+    pull_policy: if_not_present
+    restart: unless-stopped
+    command: node live/server.js live
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
       restart_policy:

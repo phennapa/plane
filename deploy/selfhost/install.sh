@@ -7,7 +7,7 @@ PLANE_INSTALL_DIR=$PWD/$SERVICE_FOLDER
 export APP_RELEASE="stable"
 export DOCKERHUB_USER=ghcr.io/phennapa/plane
 export PULL_POLICY=${PULL_POLICY:-if_not_present}
-export GH_REPO=makeplane/plane
+export GH_REPO=phennapa/plane
 export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
 export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deploy/selfhost"
 
