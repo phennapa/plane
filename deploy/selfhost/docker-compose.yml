@@ -101,7 +101,7 @@ services:
     platform: ${DOCKER_PLATFORM:-}
     pull_policy: if_not_present
     restart: unless-stopped
-    command: node live/server.js live
+    command: node live/dist/server.js live
     deploy:
       replicas: ${LIVE_REPLICAS:-1}
     depends_on:
