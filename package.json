@@ -1,7 +1,7 @@
 {
   "name": "plane",
   "description": "Open-source project management that unlocks customer value",
-  "repository": "https://github.com/makeplane/plane.git",
+  "repository": "https://github.com/phennapa/plane.git",
   "version": "0.25.1",
   "license": "AGPL-3.0",
   "private": true,
