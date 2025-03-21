@@ -701,6 +701,7 @@
     "property": "Propiedad",
     "properties": "Propiedades",
     "parent": "Padre",
+    "page": "página",
     "remove": "Eliminar",
     "archiving": "Archivando",
     "archive": "Archivar",
@@ -867,7 +868,8 @@
     "delete": "Eliminar",
     "deleting": "Eliminando",
     "pending": "Pendiente",
-    "invite": "Invitar"
+    "invite": "Invitar",
+    "view": "Ver"
   },
 
   "chart": {
@@ -985,7 +987,8 @@
         "sub_issue_count": "Cantidad de sub-elementos",
         "attachment_count": "Cantidad de archivos adjuntos",
         "created_on": "Creado el",
-        "sub_issue": "Sub-elemento de trabajo"
+        "sub_issue": "Sub-elemento de trabajo",
+        "work_item_count": "Recuento de elementos de trabajo"
       },
       "extra": {
         "show_sub_issues": "Mostrar sub-elementos",
@@ -1472,7 +1475,8 @@
             "max_length": "El nombre del espacio de trabajo no debe exceder los 80 caracteres"
           },
           "company_size": {
-            "required": "El tamaño de la empresa es obligatorio"
+            "required": "El tamaño de la empresa es obligatorio",
+            "select_a_range": "Seleccionar tamaño de la organización"
           }
         }
       },

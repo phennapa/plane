@@ -699,6 +699,7 @@
     "property": "Propriété",
     "properties": "Propriétés",
     "parent": "Parent",
+    "page": "Pâge",
     "remove": "Supprimer",
     "archiving": "Archivage",
     "archive": "Archiver",
@@ -856,7 +857,7 @@
     "you": "Vous",
     "upgrade_cta": {
       "higher_subscription": "Passer à une abonnement plus élevé",
-      "talk_to_sales": "Parler à la vente"
+      "talk_to_sales": "Parler aux ventes"
     },
     "category": "Catégorie",
     "categories": "Catégories",
@@ -865,7 +866,8 @@
     "delete": "Supprimer",
     "deleting": "Suppression",
     "pending": "En attente",
-    "invite": "Inviter"
+    "invite": "Inviter",
+    "view": "Afficher"
   },
 
   "chart": {
@@ -983,7 +985,8 @@
         "sub_issue_count": "Nombre de sous-éléments",
         "attachment_count": "Nombre de pièces jointes",
         "created_on": "Créé le",
-        "sub_issue": "Sous-élément de travail"
+        "sub_issue": "Sous-élément de travail",
+        "work_item_count": "Nombre d'éléments de travail"
       },
       "extra": {
         "show_sub_issues": "Afficher les sous-éléments",
@@ -1470,7 +1473,8 @@
             "max_length": "Le nom de l'espace de travail ne doit pas dépasser 80 caractères"
           },
           "company_size": {
-            "required": "La taille de l'entreprise est requise"
+            "required": "La taille de l'entreprise est requise",
+            "select_a_range": "Sélectionner la taille de l'organisation"
           }
         }
       },

@@ -1,20 +1,21 @@
 import React, { forwardRef } from "react";
-// editor
+// plane imports
 import { EditorRefApi, IRichTextEditor, RichTextEditorWithRef, TFileHandler } from "@plane/editor";
+import { MakeOptional } from "@plane/types";
 // components
 import { EditorMentionsRoot } from "@/components/editor";
 // helpers
 import { getEditorFileHandlers } from "@/helpers/editor.helper";
 
 interface RichTextEditorWrapperProps
-  extends Omit<IRichTextEditor, "disabledExtensions" | "fileHandler" | "mentionHandler"> {
+  extends MakeOptional<Omit<IRichTextEditor, "fileHandler" | "mentionHandler">, "disabledExtensions"> {
   anchor: string;
   uploadFile: TFileHandler["upload"];
   workspaceId: string;
 }
 
 export const RichTextEditor = forwardRef<EditorRefApi, RichTextEditorWrapperProps>((props, ref) => {
-  const { anchor, containerClassName, uploadFile, workspaceId, ...rest } = props;
+  const { anchor, containerClassName, uploadFile, workspaceId, disabledExtensions, ...rest } = props;
 
   return (
     <RichTextEditorWithRef
@@ -22,7 +23,7 @@ export const RichTextEditor = forwardRef<EditorRefApi, RichTextEditorWrapperProp
         renderComponent: (props) => <EditorMentionsRoot {...props} />,
       }}
       ref={ref}
-      disabledExtensions={[]}
+      disabledExtensions={disabledExtensions ?? []}
       fileHandler={getEditorFileHandlers({
         anchor,
         uploadFile,
@@ -30,7 +31,7 @@ export const RichTextEditor = forwardRef<EditorRefApi, RichTextEditorWrapperProp
       })}
       {...rest}
       containerClassName={containerClassName}
-      editorClassName="min-h-[100px] max-h-[50vh] border border-gray-100 rounded-md pl-3 pb-3 overflow-y-scroll"
+      editorClassName="min-h-[100px] max-h-[50vh] border-[0.5px] border-custom-border-200 rounded-md pl-3 py-2 overflow-y-scroll"
     />
   );
 });
