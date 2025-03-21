@@ -1,6 +1,7 @@
 "use client";
 
 import { Command } from "cmdk";
+import { useParams } from "next/navigation";
 // types
 import { IWorkspaceSearchResults } from "@plane/types";
 // helpers
@@ -15,8 +16,11 @@ type Props = {
 
 export const CommandPaletteSearchResults: React.FC<Props> = (props) => {
   const { closePalette, results } = props;
-
+  // router
   const router = useAppRouter();
+  const { projectId: routerProjectId } = useParams();
+  // derived values
+  const projectId = routerProjectId?.toString();
 
   return (
     <>
@@ -24,6 +28,7 @@ export const CommandPaletteSearchResults: React.FC<Props> = (props) => {
         const section = (results.results as any)[key];
         const currentSection = commandGroups[key];
 
+        if (!currentSection) return null;
         if (section.length > 0) {
           return (
             <Command.Group key={key} heading={`${currentSection.title} search`}>
@@ -32,7 +37,7 @@ export const CommandPaletteSearchResults: React.FC<Props> = (props) => {
                   key={item.id}
                   onSelect={() => {
                     closePalette();
-                    router.push(currentSection.path(item));
+                    router.push(currentSection.path(item, projectId));
                   }}
                   value={`${key}-${item?.id}-${item.name}-${item.project__identifier ?? ""}-${item.sequence_id ?? ""}`}
                   className="focus:outline-none"

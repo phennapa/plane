@@ -39,7 +39,12 @@ export interface TableOptions {
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     table: {
-      insertTable: (options?: { rows?: number; cols?: number; withHeaderRow?: boolean }) => ReturnType;
+      insertTable: (options?: {
+        rows?: number;
+        cols?: number;
+        withHeaderRow?: boolean;
+        columnWidth?: number;
+      }) => ReturnType;
       addColumnBefore: () => ReturnType;
       addColumnAfter: () => ReturnType;
       deleteColumn: () => ReturnType;
@@ -108,9 +113,9 @@ export const Table = Node.create({
   addCommands() {
     return {
       insertTable:
-        ({ rows = 3, cols = 3, withHeaderRow = false } = {}) =>
+        ({ rows = 3, cols = 3, withHeaderRow = false, columnWidth = 150 } = {}) =>
         ({ tr, dispatch, editor }) => {
-          const node = createTable(editor.schema, rows, cols, withHeaderRow);
+          const node = createTable(editor.schema, rows, cols, withHeaderRow, undefined, columnWidth);
           if (dispatch) {
             const offset = tr.selection.anchor + 1;
 
@@ -204,11 +209,8 @@ export const Table = Node.create({
         ({ tr, dispatch }) => {
           if (dispatch) {
             const selection = CellSelection.create(tr.doc, position.anchorCell, position.headCell);
-
-            // @ts-ignore
             tr.setSelection(selection);
           }
-
           return true;
         },
     };
@@ -247,7 +249,7 @@ export const Table = Node.create({
     return ({ editor, getPos, node, decorations }) => {
       const { cellMinWidth } = this.options;
 
-      return new TableView(node, cellMinWidth, decorations, editor, getPos as () => number);
+      return new TableView(node, cellMinWidth, decorations as any, editor, getPos as () => number);
     };
   },
 
@@ -267,8 +269,6 @@ export const Table = Node.create({
           handleWidth: this.options.handleWidth,
           cellMinWidth: this.options.cellMinWidth,
           // View: TableView,
-
-          // @ts-ignore
           lastColumnResizable: this.options.lastColumnResizable,
         })
       );

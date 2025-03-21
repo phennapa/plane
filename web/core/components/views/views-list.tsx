@@ -1,46 +1,49 @@
 import { observer } from "mobx-react";
-import Image from "next/image";
 import { useParams } from "next/navigation";
+// plane imports
+import { EUserPermissionsLevel, EUserProjectRoles } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 // components
 import { ListLayout } from "@/components/core/list";
-import { EmptyState } from "@/components/empty-state";
+import { ComicBoxButton, DetailedEmptyState, SimpleEmptyState } from "@/components/empty-state";
 import { ViewListLoader } from "@/components/ui";
 import { ProjectViewListItem } from "@/components/views";
-// constants
-import { EmptyStateType } from "@/constants/empty-state";
 // hooks
-import { useCommandPalette, useProjectView } from "@/hooks/store";
-// assets
-import AllFiltersImage from "@/public/empty-state/pages/all-filters.svg";
-import NameFilterImage from "@/public/empty-state/pages/name-filter.svg";
+import { useCommandPalette, useProjectView, useUserPermissions } from "@/hooks/store";
+import { useResolvedAssetPath } from "@/hooks/use-resolved-asset-path";
 
 export const ProjectViewsList = observer(() => {
   const { projectId } = useParams();
+  // plane hooks
+  const { t } = useTranslation();
   // store hooks
   const { toggleCreateViewModal } = useCommandPalette();
-  const { getProjectViews, getFilteredProjectViews, filters, loader } = useProjectView();
-
+  const { getProjectViews, getFilteredProjectViews, loader } = useProjectView();
+  const { allowPermissions } = useUserPermissions();
+  // derived values
   const projectViews = getProjectViews(projectId?.toString());
   const filteredProjectViews = getFilteredProjectViews(projectId?.toString());
+  const canPerformEmptyStateActions = allowPermissions(
+    [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER, EUserProjectRoles.GUEST],
+    EUserPermissionsLevel.PROJECT
+  );
+  const generalViewResolvedPath = useResolvedAssetPath({
+    basePath: "/empty-state/onboarding/views",
+  });
+  const filteredViewResolvedPath = useResolvedAssetPath({
+    basePath: "/empty-state/search/views",
+  });
 
   if (loader || !projectViews || !filteredProjectViews) return <ViewListLoader />;
 
-  if (filteredProjectViews.length === 0 && projectViews) {
+  if (filteredProjectViews.length === 0 && projectViews.length > 0) {
     return (
-      <div className="h-full w-full grid place-items-center">
-        <div className="text-center">
-          <Image
-            src={filters.searchQuery.length > 0 ? NameFilterImage : AllFiltersImage}
-            className="h-36 sm:h-48 w-36 sm:w-48 mx-auto"
-            alt="No matching modules"
-          />
-          <h5 className="text-xl font-medium mt-7 mb-1">No matching views</h5>
-          <p className="text-custom-text-400 text-base">
-            {filters.searchQuery.length > 0
-              ? "Remove the search criteria to see all views"
-              : "Remove the filters to see all views"}
-          </p>
-        </div>
+      <div className="flex items-center justify-center h-full w-full">
+        <SimpleEmptyState
+          title={t("project_views.empty_state.filter.title")}
+          description={t("project_views.empty_state.filter.description")}
+          assetPath={filteredViewResolvedPath}
+        />
       </div>
     );
   }
@@ -58,7 +61,20 @@ export const ProjectViewsList = observer(() => {
           </ListLayout>
         </div>
       ) : (
-        <EmptyState type={EmptyStateType.PROJECT_VIEW} primaryButtonOnClick={() => toggleCreateViewModal(true)} />
+        <DetailedEmptyState
+          title={t("project_views.empty_state.general.title")}
+          description={t("project_views.empty_state.general.description")}
+          assetPath={generalViewResolvedPath}
+          customPrimaryButton={
+            <ComicBoxButton
+              label={t("project_views.empty_state.general.primary_button.text")}
+              title={t("project_views.empty_state.general.primary_button.comic.title")}
+              description={t("project_views.empty_state.general.primary_button.comic.description")}
+              onClick={() => toggleCreateViewModal(true)}
+              disabled={!canPerformEmptyStateActions}
+            />
+          }
+        />
       )}
     </>
   );

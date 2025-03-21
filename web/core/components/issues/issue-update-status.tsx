@@ -1,34 +1,25 @@
 import React from "react";
 import { observer } from "mobx-react";
 import { RefreshCw } from "lucide-react";
-import { TIssue } from "@plane/types";
 // types
-import { useProject } from "@/hooks/store";
+import { TNameDescriptionLoader } from "@plane/types";
 
 type Props = {
-  isSubmitting: "submitting" | "submitted" | "saved";
-  issueDetail?: TIssue;
+  isSubmitting: TNameDescriptionLoader;
 };
 
-export const IssueUpdateStatus: React.FC<Props> = observer((props) => {
-  const { isSubmitting, issueDetail } = props;
-  // hooks
-  const { getProjectById } = useProject();
+export const NameDescriptionUpdateStatus: React.FC<Props> = observer((props) => {
+  const { isSubmitting } = props;
 
   return (
     <>
-      {issueDetail && (
-        <h4 className="mr-4 text-lg font-medium text-custom-text-300">
-          {getProjectById(issueDetail.project_id)?.identifier}-{issueDetail.sequence_id}
-        </h4>
-      )}
       <div
         className={`flex items-center gap-x-2 transition-all duration-300 ${
           isSubmitting === "saved" ? "fade-out" : "fade-in"
         }`}
       >
         {isSubmitting !== "submitted" && isSubmitting !== "saved" && (
-          <RefreshCw className="h-4 w-4 stroke-custom-text-300" />
+          <RefreshCw className="animate-spin size-3.5 stroke-custom-text-300" />
         )}
         <span className="text-sm text-custom-text-300">{isSubmitting === "submitting" ? "Saving..." : "Saved"}</span>
       </div>

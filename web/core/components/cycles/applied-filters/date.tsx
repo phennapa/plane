@@ -1,7 +1,7 @@
 import { observer } from "mobx-react";
 import { X } from "lucide-react";
 // helpers
-import { DATE_AFTER_FILTER_OPTIONS } from "@/constants/filters";
+import { DATE_AFTER_FILTER_OPTIONS } from "@plane/constants";
 import { renderFormattedDate } from "@/helpers/date-time.helper";
 import { capitalizeFirstLetter } from "@/helpers/string.helper";
 // constants
@@ -37,7 +37,7 @@ export const AppliedDateFilters: React.FC<Props> = observer((props) => {
   return (
     <>
       {values.map((date) => (
-        <div key={date} className="flex items-center gap-1 rounded bg-custom-background-80 p-1 text-xs">
+        <div key={date} className="flex items-center gap-1 rounded bg-custom-background-80 py-1 px-1.5 text-xs">
           <span className="normal-case">{getDateLabel(date)}</span>
           {editable && (
             <button

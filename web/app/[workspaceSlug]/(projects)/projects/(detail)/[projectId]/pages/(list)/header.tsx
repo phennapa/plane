@@ -1,79 +1,82 @@
 "use client";
 
+import { useState } from "react";
 import { observer } from "mobx-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FileText } from "lucide-react";
-// ui
-import { Breadcrumbs, Button } from "@plane/ui";
-// helpers
-import { BreadcrumbLink, Logo } from "@/components/common";
 // constants
-import { EPageAccess } from "@/constants/page";
-import { EUserProjectRoles } from "@/constants/project";
+import { EPageAccess } from "@plane/constants";
+// plane types
+import { TPage } from "@plane/types";
+// plane ui
+import { Breadcrumbs, Button, Header, setToast, TOAST_TYPE } from "@plane/ui";
+// helpers
+import { BreadcrumbLink } from "@/components/common";
 // hooks
-import { useCommandPalette, useEventTracker, useProject, useUser } from "@/hooks/store";
+import { useEventTracker, useProject } from "@/hooks/store";
+// plane web
+import { ProjectBreadcrumb } from "@/plane-web/components/breadcrumbs";
+// plane web hooks
+import { EPageStoreType, usePageStore } from "@/plane-web/hooks/store";
 
 export const PagesListHeader = observer(() => {
+  // states
+  const [isCreatingPage, setIsCreatingPage] = useState(false);
   // router
+  const router = useRouter();
   const { workspaceSlug } = useParams();
   const searchParams = useSearchParams();
   const pageType = searchParams.get("type");
   // store hooks
-  const { toggleCreatePageModal } = useCommandPalette();
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
   const { currentProjectDetails, loader } = useProject();
+  const { canCurrentUserCreatePage, createPage } = usePageStore(EPageStoreType.PROJECT);
   const { setTrackElement } = useEventTracker();
+  // handle page create
+  const handleCreatePage = async () => {
+    setIsCreatingPage(true);
+    setTrackElement("Project pages page");
 
-  const canUserCreatePage =
-    currentProjectRole && [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER].includes(currentProjectRole);
+    const payload: Partial<TPage> = {
+      access: pageType === "private" ? EPageAccess.PRIVATE : EPageAccess.PUBLIC,
+    };
+
+    await createPage(payload)
+      .then((res) => {
+        const pageId = `/${workspaceSlug}/projects/${currentProjectDetails?.id}/pages/${res?.id}`;
+        router.push(pageId);
+      })
+      .catch((err) =>
+        setToast({
+          type: TOAST_TYPE.ERROR,
+          title: "Error!",
+          message: err?.data?.error || "Page could not be created. Please try again.",
+        })
+      )
+      .finally(() => setIsCreatingPage(false));
+  };
 
   return (
-    <div className="relative z-10 flex h-[3.75rem] w-full flex-shrink-0 flex-row items-center justify-between gap-x-2 gap-y-4 bg-custom-sidebar-background-100 p-4">
-      <div className="flex w-full flex-grow items-center gap-2 overflow-ellipsis whitespace-nowrap">
+    <Header>
+      <Header.LeftItem>
         <div>
-          <Breadcrumbs isLoading={loader}>
-            <Breadcrumbs.BreadcrumbItem
-              type="text"
-              link={
-                <BreadcrumbLink
-                  href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/issues`}
-                  label={currentProjectDetails?.name ?? "Project"}
-                  icon={
-                    currentProjectDetails && (
-                      <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
-                        <Logo logo={currentProjectDetails?.logo_props} size={16} />
-                      </span>
-                    )
-                  }
-                />
-              }
-            />
+          <Breadcrumbs isLoading={loader === "init-loader"}>
+            <ProjectBreadcrumb />
             <Breadcrumbs.BreadcrumbItem
               type="text"
               link={<BreadcrumbLink label="Pages" icon={<FileText className="h-4 w-4 text-custom-text-300" />} />}
             />
           </Breadcrumbs>
         </div>
-      </div>
-      {canUserCreatePage && (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setTrackElement("Project pages page");
-              toggleCreatePageModal({
-                isOpen: true,
-                pageAccess: pageType === "private" ? EPageAccess.PRIVATE : EPageAccess.PUBLIC,
-              });
-            }}
-          >
-            Add Page
+      </Header.LeftItem>
+      {canCurrentUserCreatePage ? (
+        <Header.RightItem>
+          <Button variant="primary" size="sm" onClick={handleCreatePage} loading={isCreatingPage}>
+            {isCreatingPage ? "Adding" : "Add page"}
           </Button>
-        </div>
+        </Header.RightItem>
+      ) : (
+        <></>
       )}
-    </div>
+    </Header>
   );
 });

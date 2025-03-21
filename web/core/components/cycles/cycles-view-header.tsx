@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 // icons
 import { ListFilter, Search, X } from "lucide-react";
+// plane helpers
+import { useOutsideClickDetector } from "@plane/hooks";
 // types
+import { useTranslation } from "@plane/i18n";
 import { TCycleFilters } from "@plane/types";
 // components
 import { CycleFiltersSelection } from "@/components/cycles";
@@ -12,7 +15,6 @@ import { cn } from "@/helpers/common.helper";
 import { calculateTotalFilters } from "@/helpers/filter.helper";
 // hooks
 import { useCycleFilter } from "@/hooks/store";
-import useOutsideClickDetector from "@/hooks/use-outside-click-detector";
 
 type Props = {
   projectId: string;
@@ -24,6 +26,7 @@ export const CyclesViewHeader: React.FC<Props> = observer((props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   // hooks
   const { currentProjectFilters, searchQuery, updateFilters, updateSearchQuery } = useCycleFilter();
+  const { t } = useTranslation();
   // states
   const [isSearchOpen, setIsSearchOpen] = useState(searchQuery !== "" ? true : false);
   // outside click detector hook
@@ -113,7 +116,7 @@ export const CyclesViewHeader: React.FC<Props> = observer((props) => {
       </div>
       <FiltersDropdown
         icon={<ListFilter className="h-3 w-3" />}
-        title="Filters"
+        title={t("common.filters")}
         placement="bottom-end"
         isFiltersApplied={isFiltersApplied}
       >

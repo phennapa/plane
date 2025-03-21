@@ -12,6 +12,8 @@ import uniq from "lodash/uniq";
 import update from "lodash/update";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
+// plane constants
+import { EIssueLayoutTypes, ALL_ISSUES, EIssueServiceType, ISSUE_PRIORITIES } from "@plane/constants";
 // types
 import {
   TIssue,
@@ -28,11 +30,18 @@ import {
   TPaginationData,
   TBulkOperationsPayload,
 } from "@plane/types";
-import { ALL_ISSUES, EIssueLayoutTypes, ISSUE_PRIORITIES } from "@/constants/issue";
+// components
+import { IBlockUpdateDependencyData } from "@/components/gantt-chart";
+// helpers
 import { convertToISODateString } from "@/helpers/date-time.helper";
+// local-db
+import { SPECIAL_ORDER_BY } from "@/local-db/utils/query-constructor";
+import { updatePersistentLayer } from "@/local-db/utils/utils";
+// services
 import { CycleService } from "@/services/cycle.service";
 import { IssueArchiveService, IssueDraftService, IssueService } from "@/services/issue";
 import { ModuleService } from "@/services/module.service";
+//
 import { IIssueRootStore } from "../root.store";
 import {
   getDifference,
@@ -43,9 +52,6 @@ import {
   getSubGroupIssueKeyActions,
 } from "./base-issues-utils";
 import { IBaseIssueFilterStore } from "./issue-filter-helper.store";
-// constants
-// helpers
-// services
 
 export type TIssueDisplayFilterOptions = Exclude<TIssueGroupByOptions, null> | "target_date";
 
@@ -64,6 +70,7 @@ export interface IBaseIssuesStore {
 
   //actions
   removeIssue: (workspaceSlug: string, projectId: string, issueId: string) => Promise<void>;
+  clear(shouldClearPaginationOptions?: boolean, clearForLocal?: boolean): void;
   // helper methods
   getIssueIds: (groupId?: string, subGroupId?: string) => string[] | undefined;
   issuesSortWithOrderBy(issueIds: string[], key: Partial<TIssueOrderByOptions>): string[];
@@ -106,6 +113,7 @@ export interface IBaseIssuesStore {
     addModuleIds: string[],
     removeModuleIds: string[]
   ): Promise<void>;
+  updateIssueDates(workspaceSlug: string, projectId: string, updates: IBlockUpdateDependencyData[]): Promise<void>;
 }
 
 // This constant maps the group by keys to the respective issue property that the key relies on
@@ -120,6 +128,7 @@ const ISSUE_GROUP_BY_KEY: Record<TIssueDisplayFilterOptions, keyof TIssue> = {
   target_date: "target_date",
   cycle: "cycle_id",
   module: "module_ids",
+  team_project: "project_id",
 };
 
 export const ISSUE_FILTER_DEFAULT_DATA: Record<TIssueDisplayFilterOptions, keyof TIssue> = {
@@ -133,6 +142,7 @@ export const ISSUE_FILTER_DEFAULT_DATA: Record<TIssueDisplayFilterOptions, keyof
   created_by: "created_by",
   assignees: "assignee_ids",
   target_date: "target_date",
+  team_project: "project_id",
 };
 
 // This constant maps the order by keys to the respective issue property that the key relies on
@@ -156,8 +166,8 @@ const ISSUE_ORDERBY_KEY: Record<TIssueOrderByOptions, keyof TIssue> = {
   "-issue_cycle__cycle__name": "cycle_id",
   target_date: "target_date",
   "-target_date": "target_date",
-  estimate_point: "estimate_point",
-  "-estimate_point": "estimate_point",
+  estimate_point__key: "estimate_point",
+  "-estimate_point__key": "estimate_point",
   start_date: "start_date",
   "-start_date": "start_date",
   link_count: "link_count",
@@ -191,7 +201,12 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   // API Abort controller
   controller: AbortController;
 
-  constructor(_rootStore: IIssueRootStore, issueFilterStore: IBaseIssueFilterStore, isArchived = false) {
+  constructor(
+    _rootStore: IIssueRootStore,
+    issueFilterStore: IBaseIssueFilterStore,
+    isArchived = false,
+    serviceType = EIssueServiceType.ISSUES
+  ) {
     makeObservable(this, {
       // observable
       loader: observable,
@@ -223,6 +238,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       issueUpdate: action,
       createDraftIssue: action,
       updateDraftIssue: action,
+      updateIssueDates: action,
       issueQuickAdd: action.bound,
       removeIssue: action.bound,
       issueArchive: action.bound,
@@ -244,7 +260,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
     this.isArchived = isArchived;
 
-    this.issueService = new IssueService();
+    this.issueService = new IssueService(serviceType);
     this.issueArchiveService = new IssueArchiveService();
     this.issueDraftService = new IssueDraftService();
     this.moduleService = new ModuleService();
@@ -255,6 +271,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
   // Abstract class to be implemented to fetch parent stats such as project, module or cycle details
   abstract fetchParentStats: (workspaceSlug: string, projectId?: string, id?: string) => void;
+
+  abstract updateParentStats: (prevIssueState?: TIssue, nextIssueState?: TIssue, id?: string) => void;
 
   // current Module Id from url
   get moduleId() {
@@ -270,6 +288,20 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   get orderBy() {
     const displayFilters = this.issueFilterStore?.issueFilters?.displayFilters;
     if (!displayFilters) return;
+
+    const layout = displayFilters.layout;
+    const orderBy = displayFilters.order_by;
+
+    // Temporary code to fix no load order by
+    if (
+      this.rootIssueStore.rootStore.user.localDBEnabled &&
+      this.rootIssueStore.rootStore.router.projectId &&
+      layout !== EIssueLayoutTypes.SPREADSHEET &&
+      orderBy &&
+      Object.keys(SPECIAL_ORDER_BY).includes(orderBy)
+    ) {
+      return "sort_order";
+    }
 
     return displayFilters?.order_by;
   }
@@ -452,7 +484,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     options: IssuePaginationOptions,
     workspaceSlug: string,
     projectId?: string,
-    id?: string
+    id?: string,
+    shouldClearPaginationOptions = true
   ) {
     // Process the Issue Response to get the following data from it
     const { issueList, groupedIssues, groupedIssueCount } = this.processIssueResponse(issuesResponse);
@@ -462,12 +495,15 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
 
     // Update all the GroupIds to this Store's groupedIssueIds and update Individual group issue counts
     runInAction(() => {
+      this.clear(shouldClearPaginationOptions, true);
       this.updateGroupedIssueIds(groupedIssues, groupedIssueCount);
       this.loader[getGroupKey()] = undefined;
     });
 
     // fetch parent stats if required, to be handled in the Implemented class
     this.fetchParentStats(workspaceSlug, projectId, id);
+
+    this.rootIssueStore.issueDetail.relation.extractRelationsFromIssues(issueList);
 
     // store Pagination options for next subsequent calls and data like next cursor etc
     this.storePreviousPaginationValues(issuesResponse, options);
@@ -494,6 +530,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       this.loader[getGroupKey(groupId, subGroupId)] = undefined;
     });
 
+    this.rootIssueStore.issueDetail.relation.extractRelationsFromIssues(issueList);
+
     // store Pagination data like next cursor etc
     this.storePreviousPaginationValues(issuesResponse, undefined, groupId, subGroupId);
   }
@@ -514,20 +552,18 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     id?: string,
     shouldUpdateList = true
   ) {
-    try {
-      // perform an API call
-      const response = await this.issueService.createIssue(workspaceSlug, projectId, data);
+    // perform an API call
+    const response = await this.issueService.createIssue(workspaceSlug, projectId, data);
 
-      // add Issue to Store
-      this.addIssue(response, shouldUpdateList);
+    // add Issue to Store
+    this.addIssue(response, shouldUpdateList);
 
-      // If shouldUpdateList is true, call fetchParentStats
-      shouldUpdateList && this.fetchParentStats(workspaceSlug, projectId);
+    // If shouldUpdateList is true, call fetchParentStats
+    shouldUpdateList && (await this.fetchParentStats(workspaceSlug, projectId));
 
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    updatePersistentLayer(response.id);
+
+    return response;
   }
 
   /**
@@ -556,6 +592,12 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       // Check if should Sync
       if (!shouldSync) return;
 
+      // update parent stats optimistically
+      this.updateParentStats(issueBeforeUpdate, {
+        ...issueBeforeUpdate,
+        ...data,
+      } as TIssue);
+
       // call API to update the issue
       await this.issueService.patchIssue(workspaceSlug, projectId, issueId, data);
 
@@ -577,20 +619,13 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns
    */
   async createDraftIssue(workspaceSlug: string, projectId: string, data: Partial<TIssue>) {
-    try {
-      // call API to create a Draft issue
-      const response = await this.issueDraftService.createDraftIssue(workspaceSlug, projectId, data);
-
-      // call Fetch parent stats
-      this.fetchParentStats(workspaceSlug, projectId);
-
-      // Add issue to store
-      this.addIssue(response);
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    // call API to create a Draft issue
+    const response = await this.issueDraftService.createDraftIssue(workspaceSlug, projectId, data);
+    // call Fetch parent stats
+    this.fetchParentStats(workspaceSlug, projectId);
+    // Add issue to store
+    this.addIssue(response);
+    return response;
   }
 
   /**
@@ -631,23 +666,21 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @param issueId
    */
   async removeIssue(workspaceSlug: string, projectId: string, issueId: string) {
-    try {
-      // Male API call
-      await this.issueService.deleteIssue(workspaceSlug, projectId, issueId);
+    // Store Before state of the issue
+    const issueBeforeRemoval = clone(this.rootIssueStore.issues.getIssueById(issueId));
+    // update parent stats optimistically
+    this.updateParentStats(issueBeforeRemoval, undefined);
 
-      // Remove from Respective issue Id list
-      runInAction(() => {
-        this.removeIssueFromList(issueId);
-      });
-
-      // call fetch Parent stats
-      this.fetchParentStats(workspaceSlug, projectId);
-
-      // Remove issue from main issue Map store
-      this.rootIssueStore.issues.removeIssue(issueId);
-    } catch (error) {
-      throw error;
-    }
+    // Male API call
+    await this.issueService.deleteIssue(workspaceSlug, projectId, issueId);
+    // Remove from Respective issue Id list
+    runInAction(() => {
+      this.removeIssueFromList(issueId);
+    });
+    // call fetch Parent stats
+    this.fetchParentStats(workspaceSlug, projectId);
+    // Remove issue from main issue Map store
+    this.rootIssueStore.issues.removeIssue(issueId);
   }
 
   /**
@@ -657,24 +690,21 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @param issueId
    */
   async issueArchive(workspaceSlug: string, projectId: string, issueId: string) {
-    try {
-      // Male API call
-      const response = await this.issueArchiveService.archiveIssue(workspaceSlug, projectId, issueId);
-
-      // call fetch Parent stats
-      this.fetchParentStats(workspaceSlug, projectId);
-
-      runInAction(() => {
-        // Update the Archived at of the issue from store
-        this.rootIssueStore.issues.updateIssue(issueId, {
-          archived_at: response.archived_at,
-        });
-        // Since Archived remove the issue Id from the current store
-        this.removeIssueFromList(issueId);
+    const issueBeforeArchive = clone(this.rootIssueStore.issues.getIssueById(issueId));
+    // update parent stats optimistically
+    this.updateParentStats(issueBeforeArchive, undefined);
+    // Male API call
+    const response = await this.issueArchiveService.archiveIssue(workspaceSlug, projectId, issueId);
+    // call fetch Parent stats
+    this.fetchParentStats(workspaceSlug, projectId);
+    runInAction(() => {
+      // Update the Archived at of the issue from store
+      this.rootIssueStore.issues.updateIssue(issueId, {
+        archived_at: response.archived_at,
       });
-    } catch (error) {
-      throw error;
-    }
+      // Since Archived remove the issue Id from the current store
+      this.removeIssueFromList(issueId);
+    });
   }
 
   /**
@@ -685,38 +715,28 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns
    */
   async issueQuickAdd(workspaceSlug: string, projectId: string, data: TIssue) {
-    try {
-      // Add issue to store with a temporary Id
-      this.addIssue(data);
-
-      // call Create issue method
-      const response = await this.createIssue(workspaceSlug, projectId, data);
-
-      runInAction(() => {
-        this.removeIssueFromList(data.id);
-        this.rootIssueStore.issues.removeIssue(data.id);
-      });
-
-      const currentCycleId = data.cycle_id !== "" && data.cycle_id === "None" ? undefined : data.cycle_id;
-      const currentModuleIds =
-        data.module_ids && data.module_ids.length > 0 ? data.module_ids.filter((moduleId) => moduleId != "None") : [];
-
-      const promiseRequests = [];
-      if (currentCycleId) {
-        promiseRequests.push(this.addCycleToIssue(workspaceSlug, projectId, currentCycleId, response.id));
-      }
-      if (currentModuleIds.length > 0) {
-        promiseRequests.push(this.changeModulesInIssue(workspaceSlug, projectId, response.id, currentModuleIds, []));
-      }
-
-      if (promiseRequests && promiseRequests.length > 0) {
-        await Promise.all(promiseRequests);
-      }
-
-      return response;
-    } catch (error) {
-      throw error;
+    // Add issue to store with a temporary Id
+    this.addIssue(data);
+    // call Create issue method
+    const response = await this.createIssue(workspaceSlug, projectId, data);
+    runInAction(() => {
+      this.removeIssueFromList(data.id);
+      this.rootIssueStore.issues.removeIssue(data.id);
+    });
+    const currentCycleId = data.cycle_id !== "" && data.cycle_id === "None" ? undefined : data.cycle_id;
+    const currentModuleIds =
+      data.module_ids && data.module_ids.length > 0 ? data.module_ids.filter((moduleId) => moduleId != "None") : [];
+    const promiseRequests = [];
+    if (currentCycleId) {
+      promiseRequests.push(this.addCycleToIssue(workspaceSlug, projectId, currentCycleId, response.id));
     }
+    if (currentModuleIds.length > 0) {
+      promiseRequests.push(this.changeModulesInIssue(workspaceSlug, projectId, response.id, currentModuleIds, []));
+    }
+    if (promiseRequests && promiseRequests.length > 0) {
+      await Promise.all(promiseRequests);
+    }
+    return response;
   }
 
   /**
@@ -727,24 +747,18 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns
    */
   async removeBulkIssues(workspaceSlug: string, projectId: string, issueIds: string[]) {
-    try {
-      // Make API call to bulk delete issues
-      const response = await this.issueService.bulkDeleteIssues(workspaceSlug, projectId, { issue_ids: issueIds });
-
-      // call fetch parent stats
-      this.fetchParentStats(workspaceSlug, projectId);
-
-      // Remove issues from the store
-      runInAction(() => {
-        issueIds.forEach((issueId) => {
-          this.removeIssueFromList(issueId);
-          this.rootIssueStore.issues.removeIssue(issueId);
-        });
+    // Make API call to bulk delete issues
+    const response = await this.issueService.bulkDeleteIssues(workspaceSlug, projectId, { issue_ids: issueIds });
+    // call fetch parent stats
+    this.fetchParentStats(workspaceSlug, projectId);
+    // Remove issues from the store
+    runInAction(() => {
+      issueIds.forEach((issueId) => {
+        this.removeIssueFromList(issueId);
+        this.rootIssueStore.issues.removeIssue(issueId);
       });
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    });
+    return response;
   }
 
   /**
@@ -754,26 +768,22 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @param issueIds
    */
   bulkArchiveIssues = async (workspaceSlug: string, projectId: string, issueIds: string[]) => {
-    try {
-      const response = await this.issueService.bulkArchiveIssues(workspaceSlug, projectId, { issue_ids: issueIds });
+    const response = await this.issueService.bulkArchiveIssues(workspaceSlug, projectId, { issue_ids: issueIds });
 
-      runInAction(() => {
-        issueIds.forEach((issueId) => {
-          this.issueUpdate(
-            workspaceSlug,
-            projectId,
-            issueId,
-            {
-              archived_at: response.archived_at,
-            },
-            false
-          );
-          this.removeIssueFromList(issueId);
-        });
+    runInAction(() => {
+      issueIds.forEach((issueId) => {
+        this.issueUpdate(
+          workspaceSlug,
+          projectId,
+          issueId,
+          {
+            archived_at: response.archived_at,
+          },
+          false
+        );
+        this.removeIssueFromList(issueId);
       });
-    } catch (error) {
-      throw error;
-    }
+    });
   };
 
   /**
@@ -782,41 +792,81 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    */
   bulkUpdateProperties = async (workspaceSlug: string, projectId: string, data: TBulkOperationsPayload) => {
     const issueIds = data.issue_ids;
-    try {
-      // make request to update issue properties
-      await this.issueService.bulkOperations(workspaceSlug, projectId, data);
-      // update issues in the store
-      runInAction(() => {
-        issueIds.forEach((issueId) => {
-          const issueBeforeUpdate = clone(this.rootIssueStore.issues.getIssueById(issueId));
-          if (!issueBeforeUpdate) throw new Error("Issue not found");
-          Object.keys(data.properties).forEach((key) => {
-            const property = key as keyof TBulkOperationsPayload["properties"];
-            const propertyValue = data.properties[property];
-            // update root issue map properties
-            if (Array.isArray(propertyValue)) {
-              // if property value is array, append it to the existing values
-              const existingValue = issueBeforeUpdate[property];
-              // convert existing value to an array
-              const newExistingValue = Array.isArray(existingValue) ? existingValue : [];
-              this.rootIssueStore.issues.updateIssue(issueId, {
-                [property]: uniq([...newExistingValue, ...propertyValue]),
-              });
-            } else {
-              // if property value is not an array, simply update the value
-              this.rootIssueStore.issues.updateIssue(issueId, {
-                [property]: propertyValue,
-              });
-            }
-          });
-          const issueDetails = this.rootIssueStore.issues.getIssueById(issueId);
-          this.updateIssueList(issueDetails, issueBeforeUpdate);
+    // make request to update issue properties
+    await this.issueService.bulkOperations(workspaceSlug, projectId, data);
+    // update issues in the store
+    runInAction(() => {
+      issueIds.forEach((issueId) => {
+        const issueBeforeUpdate = clone(this.rootIssueStore.issues.getIssueById(issueId));
+        if (!issueBeforeUpdate) throw new Error("Work item not found");
+        Object.keys(data.properties).forEach((key) => {
+          const property = key as keyof TBulkOperationsPayload["properties"];
+          const propertyValue = data.properties[property];
+          // update root issue map properties
+          if (Array.isArray(propertyValue)) {
+            // if property value is array, append it to the existing values
+            const existingValue = issueBeforeUpdate[property];
+            // convert existing value to an array
+            const newExistingValue = Array.isArray(existingValue) ? existingValue : [];
+            this.rootIssueStore.issues.updateIssue(issueId, {
+              [property]: uniq([...newExistingValue, ...propertyValue]),
+            });
+          } else {
+            // if property value is not an array, simply update the value
+            this.rootIssueStore.issues.updateIssue(issueId, {
+              [property]: propertyValue,
+            });
+          }
         });
+        const issueDetails = this.rootIssueStore.issues.getIssueById(issueId);
+        this.updateIssueList(issueDetails, issueBeforeUpdate);
       });
-    } catch (error) {
-      throw error;
-    }
+    });
   };
+
+  async updateIssueDates(
+    workspaceSlug: string,
+    projectId: string,
+    updates: { id: string; start_date?: string; target_date?: string }[]
+  ) {
+    const issueDatesBeforeChange: { id: string; start_date?: string; target_date?: string }[] = [];
+    try {
+      const getIssueById = this.rootIssueStore.issues.getIssueById;
+      runInAction(() => {
+        for (const update of updates) {
+          const dates: Partial<TIssue> = {};
+          if (update.start_date) dates.start_date = update.start_date;
+          if (update.target_date) dates.target_date = update.target_date;
+
+          const currIssue = getIssueById(update.id);
+
+          if (currIssue) {
+            issueDatesBeforeChange.push({
+              id: update.id,
+              start_date: currIssue.start_date ?? undefined,
+              target_date: currIssue.target_date ?? undefined,
+            });
+          }
+
+          this.issueUpdate(workspaceSlug, projectId, update.id, dates, false);
+        }
+      });
+
+      await this.issueService.updateIssueDates(workspaceSlug, projectId, updates);
+    } catch (e) {
+      runInAction(() => {
+        for (const update of issueDatesBeforeChange) {
+          const dates: Partial<TIssue> = {};
+          if (update.start_date) dates.start_date = update.start_date;
+          if (update.target_date) dates.target_date = update.target_date;
+
+          this.issueUpdate(workspaceSlug, projectId, update.id, dates, false);
+        }
+      });
+      console.error("error while updating Timeline dependencies");
+      throw e;
+    }
+  }
 
   /**
    * This method is used to add issues to a particular Cycle
@@ -833,33 +883,29 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     issueIds: string[],
     fetchAddedIssues = true
   ) {
-    try {
-      // Perform an APi call to add issue to cycle
-      await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
-        issues: issueIds,
-      });
+    // Perform an APi call to add issue to cycle
+    await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
+      issues: issueIds,
+    });
 
-      // if cycle Id is the current Cycle Id then call fetch parent stats
-      if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId);
+    // if cycle Id is the current Cycle Id then call fetch parent stats
+    if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId);
 
-      // if true, fetch the issue data for all the issueIds
-      if (fetchAddedIssues) await this.rootIssueStore.issues.getIssues(workspaceSlug, projectId, issueIds);
+    // if true, fetch the issue data for all the issueIds
+    if (fetchAddedIssues) await this.rootIssueStore.issues.getIssues(workspaceSlug, projectId, issueIds);
 
-      // Update issueIds from current store
-      runInAction(() => {
-        // If cycle Id is the current cycle Id, then, add issue to list of issueIds
-        if (this.cycleId === cycleId) issueIds.forEach((issueId) => this.addIssueToList(issueId));
-        // If cycle Id is not the current cycle Id, then, remove issue to list of issueIds
-        else if (this.cycleId) issueIds.forEach((issueId) => this.removeIssueFromList(issueId));
-      });
+    // Update issueIds from current store
+    runInAction(() => {
+      // If cycle Id is the current cycle Id, then, add issue to list of issueIds
+      if (this.cycleId === cycleId) issueIds.forEach((issueId) => this.addIssueToList(issueId));
+      // If cycle Id is not the current cycle Id, then, remove issue to list of issueIds
+      else if (this.cycleId) issueIds.forEach((issueId) => this.removeIssueFromList(issueId));
+    });
 
-      // For Each issue update cycle Id by calling current store's update Issue, without making an API call
-      issueIds.forEach((issueId) => {
-        this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: cycleId }, false);
-      });
-    } catch (error) {
-      throw error;
-    }
+    // For Each issue update cycle Id by calling current store's update Issue, without making an API call
+    issueIds.forEach((issueId) => {
+      this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: cycleId }, false);
+    });
   }
 
   /**
@@ -870,42 +916,65 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @param issueId
    */
   async removeIssueFromCycle(workspaceSlug: string, projectId: string, cycleId: string, issueId: string) {
-    try {
-      // Perform an APi call to remove issue from cycle
-      await this.issueService.removeIssueFromCycle(workspaceSlug, projectId, cycleId, issueId);
+    const issueBeforeRemoval = clone(this.rootIssueStore.issues.getIssueById(issueId));
 
-      // if cycle Id is the current Cycle Id then call fetch parent stats
-      if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId);
+    // update parent stats optimistically
+    if (this.cycleId === cycleId) this.updateParentStats(issueBeforeRemoval, undefined, cycleId);
 
-      runInAction(() => {
-        // If cycle Id is the current cycle Id, then, remove issue from list of issueIds
-        this.cycleId === cycleId && this.removeIssueFromList(issueId);
-      });
+    // Perform an APi call to remove issue from cycle
+    await this.issueService.removeIssueFromCycle(workspaceSlug, projectId, cycleId, issueId);
 
-      // update Issue cycle Id to null by calling current store's update Issue, without making an API call
-      this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: null }, false);
-    } catch (error) {
-      throw error;
-    }
+    // if cycle Id is the current Cycle Id then call fetch parent stats
+    if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId, cycleId);
+
+    runInAction(() => {
+      // If cycle Id is the current cycle Id, then, remove issue from list of issueIds
+      this.cycleId === cycleId && this.removeIssueFromList(issueId);
+    });
+
+    // update Issue cycle Id to null by calling current store's update Issue, without making an API call
+    this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: null }, false);
   }
 
+  /**
+   * Adds cycle to issue optimistically
+   * @param workspaceSlug
+   * @param projectId
+   * @param cycleId
+   * @param issueId
+   * @returns
+   */
   addCycleToIssue = async (workspaceSlug: string, projectId: string, cycleId: string, issueId: string) => {
     const issueCycleId = this.rootIssueStore.issues.getIssueById(issueId)?.cycle_id;
+
+    if (issueCycleId === cycleId) return;
+
+    const issueBeforeUpdate = clone(this.rootIssueStore.issues.getIssueById(issueId));
+
     try {
       // Update issueIds from current store
       runInAction(() => {
+        // If cycle Id before update is the same as current cycle Id then, remove issueId from list
+        if (this.cycleId === issueCycleId) this.removeIssueFromList(issueId);
         // If cycle Id is the current cycle Id, then, add issue to list of issueIds
         if (this.cycleId === cycleId) this.addIssueToList(issueId);
         // For Each issue update cycle Id by calling current store's update Issue, without making an API call
         this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: cycleId }, false);
       });
 
+      const issueAfterUpdate = clone(this.rootIssueStore.issues.getIssueById(issueId));
+
+      // update parent stats optimistically
+      if (this.cycleId === cycleId || this.cycleId === issueCycleId)
+        this.updateParentStats(issueBeforeUpdate, issueAfterUpdate, this.cycleId);
+
       await this.issueService.addIssueToCycle(workspaceSlug, projectId, cycleId, {
         issues: [issueId],
       });
 
       // if cycle Id is the current Cycle Id then call fetch parent stats
-      if (this.cycleId === cycleId) this.fetchParentStats(workspaceSlug, projectId);
+      if (this.cycleId === cycleId || this.cycleId === issueCycleId)
+        this.fetchParentStats(workspaceSlug, projectId, this.cycleId);
     } catch (error) {
       // remove the new issue ids from the cycle issues map
       runInAction(() => {
@@ -927,6 +996,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns
    */
   removeCycleFromIssue = async (workspaceSlug: string, projectId: string, issueId: string) => {
+    const issueBeforeRemoval = clone(this.rootIssueStore.issues.getIssueById(issueId));
     const issueCycleId = this.rootIssueStore.issues.getIssueById(issueId)?.cycle_id;
     if (!issueCycleId) return;
     try {
@@ -939,10 +1009,14 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         this.issueUpdate(workspaceSlug, projectId, issueId, { cycle_id: null }, false);
       });
 
+      // update parent stats optimistically
+      if (this.cycleId === issueCycleId) this.updateParentStats(issueBeforeRemoval, undefined, issueCycleId);
+
       // make API call
       await this.issueService.removeIssueFromCycle(workspaceSlug, projectId, issueCycleId, issueId);
+
       // if cycle Id is the current Cycle Id then call fetch parent stats
-      if (this.cycleId === issueCycleId) this.fetchParentStats(workspaceSlug, projectId);
+      if (this.cycleId === issueCycleId) this.fetchParentStats(workspaceSlug, projectId, issueCycleId);
     } catch (error) {
       // revert back changes if fails
       // Update issueIds from current store
@@ -972,32 +1046,28 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     issueIds: string[],
     fetchAddedIssues = true
   ) {
-    try {
-      // Perform an APi call to add issue to module
-      await this.moduleService.addIssuesToModule(workspaceSlug, projectId, moduleId, {
-        issues: issueIds,
-      });
+    // Perform an APi call to add issue to module
+    await this.moduleService.addIssuesToModule(workspaceSlug, projectId, moduleId, {
+      issues: issueIds,
+    });
 
-      // if true, fetch the issue data for all the issueIds
-      if (fetchAddedIssues) await this.rootIssueStore.issues.getIssues(workspaceSlug, projectId, issueIds);
+    // if true, fetch the issue data for all the issueIds
+    if (fetchAddedIssues) await this.rootIssueStore.issues.getIssues(workspaceSlug, projectId, issueIds);
 
-      // if module Id is the current Module Id then call fetch parent stats
-      if (this.moduleId === moduleId) this.fetchParentStats(workspaceSlug, projectId);
+    // if module Id is the current Module Id then call fetch parent stats
+    if (this.moduleId === moduleId) this.fetchParentStats(workspaceSlug, projectId);
 
-      runInAction(() => {
-        // if module Id is the current Module Id, then, add issue to list of issueIds
-        this.moduleId === moduleId && issueIds.forEach((issueId) => this.addIssueToList(issueId));
-      });
+    runInAction(() => {
+      // if module Id is the current Module Id, then, add issue to list of issueIds
+      this.moduleId === moduleId && issueIds.forEach((issueId) => this.addIssueToList(issueId));
+    });
 
-      // For Each issue update module Ids by calling current store's update Issue, without making an API call
-      issueIds.forEach((issueId) => {
-        const issueModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
-        const updatedIssueModuleIds = uniq(concat(issueModuleIds, [moduleId]));
-        this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: updatedIssueModuleIds }, false);
-      });
-    } catch (error) {
-      throw error;
-    }
+    // For Each issue update module Ids by calling current store's update Issue, without making an API call
+    issueIds.forEach((issueId) => {
+      const issueModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
+      const updatedIssueModuleIds = uniq(concat(issueModuleIds, [moduleId]));
+      this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: updatedIssueModuleIds }, false);
+    });
   }
 
   /**
@@ -1009,36 +1079,27 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns
    */
   async removeIssuesFromModule(workspaceSlug: string, projectId: string, moduleId: string, issueIds: string[]) {
-    try {
-      // Perform an APi call to remove issue to module
-      const response = await this.moduleService.removeIssuesFromModuleBulk(
-        workspaceSlug,
-        projectId,
-        moduleId,
-        issueIds
-      );
+    // Perform an APi call to remove issue to module
+    const response = await this.moduleService.removeIssuesFromModuleBulk(workspaceSlug, projectId, moduleId, issueIds);
 
-      // if module Id is the current Module Id then call fetch parent stats
-      if (this.moduleId === moduleId) this.fetchParentStats(workspaceSlug, projectId);
+    // if module Id is the current Module Id then call fetch parent stats
+    if (this.moduleId === moduleId) this.fetchParentStats(workspaceSlug, projectId);
 
-      runInAction(() => {
-        // if module Id is the current Module Id, then remove issue from list of issueIds
-        this.moduleId === moduleId && issueIds.forEach((issueId) => this.removeIssueFromList(issueId));
+    runInAction(() => {
+      // if module Id is the current Module Id, then remove issue from list of issueIds
+      this.moduleId === moduleId && issueIds.forEach((issueId) => this.removeIssueFromList(issueId));
+    });
+
+    // For Each issue update module Ids by calling current store's update Issue, without making an API call
+    runInAction(() => {
+      issueIds.forEach((issueId) => {
+        const issueModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
+        const updatedIssueModuleIds = pull(issueModuleIds, moduleId);
+        this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: updatedIssueModuleIds }, false);
       });
+    });
 
-      // For Each issue update module Ids by calling current store's update Issue, without making an API call
-      runInAction(() => {
-        issueIds.forEach((issueId) => {
-          const issueModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
-          const updatedIssueModuleIds = pull(issueModuleIds, moduleId);
-          this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: updatedIssueModuleIds }, false);
-        });
-      });
-
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return response;
   }
 
   /*
@@ -1051,30 +1112,26 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   async addModulesToIssue(workspaceSlug: string, projectId: string, issueId: string, moduleIds: string[]) {
     // keep a copy of the original module ids
     const originalModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
-    try {
-      //Perform API call
-      await this.moduleService.addModulesToIssue(workspaceSlug, projectId, issueId, {
-        modules: moduleIds,
-        removed_modules: [],
-      });
+    //Perform API call
+    await this.moduleService.addModulesToIssue(workspaceSlug, projectId, issueId, {
+      modules: moduleIds,
+      removed_modules: [],
+    });
 
-      runInAction(() => {
-        // get current Module Ids of the issue
-        let currentModuleIds = [...originalModuleIds];
+    runInAction(() => {
+      // get current Module Ids of the issue
+      let currentModuleIds = [...originalModuleIds];
 
-        // If current Module Id is included in the modules list, then add Issue to List
-        if (moduleIds.includes(this.moduleId ?? "")) this.addIssueToList(issueId);
-        currentModuleIds = uniq(concat([...currentModuleIds], moduleIds));
+      // If current Module Id is included in the modules list, then add Issue to List
+      if (moduleIds.includes(this.moduleId ?? "")) this.addIssueToList(issueId);
+      currentModuleIds = uniq(concat([...currentModuleIds], moduleIds));
 
-        // For current Issue, update module Ids by calling current store's update Issue, without making an API call
-        this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: currentModuleIds }, false);
-      });
+      // For current Issue, update module Ids by calling current store's update Issue, without making an API call
+      this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: currentModuleIds }, false);
+    });
 
-      if (moduleIds.includes(this.moduleId ?? "")) {
-        this.fetchParentStats(workspaceSlug, projectId);
-      }
-    } catch (error) {
-      throw error;
+    if (moduleIds.includes(this.moduleId ?? "")) {
+      this.fetchParentStats(workspaceSlug, projectId, this.moduleId);
     }
   }
 
@@ -1094,6 +1151,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
     removeModuleIds: string[]
   ) {
     // keep a copy of the original module ids
+    const issueBeforeChanges = clone(this.rootIssueStore.issues.getIssueById(issueId));
     const originalModuleIds = get(this.rootIssueStore.issues.issuesMap, [issueId, "module_ids"]) ?? [];
     try {
       runInAction(() => {
@@ -1113,6 +1171,13 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         // For current Issue, update module Ids by calling current store's update Issue, without making an API call
         this.issueUpdate(workspaceSlug, projectId, issueId, { module_ids: currentModuleIds }, false);
       });
+
+      const issueAfterChanges = clone(this.rootIssueStore.issues.getIssueById(issueId));
+
+      // update parent stats optimistically
+      if (addModuleIds.includes(this.moduleId || "") || removeModuleIds.includes(this.moduleId || "")) {
+        this.updateParentStats(issueBeforeChanges, issueAfterChanges, this.moduleId);
+      }
 
       //Perform API call
       await this.moduleService.addModulesToIssue(workspaceSlug, projectId, issueId, {
@@ -1156,17 +1221,22 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
   /**
    * Method called to clear out the current store
    */
-  clear(shouldClearPaginationOptions = true) {
-    runInAction(() => {
-      this.groupedIssueIds = undefined;
-      this.issuePaginationData = {};
-      this.groupedIssueCount = {};
-      if (shouldClearPaginationOptions) {
-        this.paginationOptions = undefined;
-      }
-    });
-    this.controller.abort();
-    this.controller = new AbortController();
+  clear(shouldClearPaginationOptions = true, clearForLocal = false) {
+    if (
+      (this.rootIssueStore.rootStore.user?.localDBEnabled && clearForLocal) ||
+      (!this.rootIssueStore.rootStore.user?.localDBEnabled && !clearForLocal)
+    ) {
+      runInAction(() => {
+        this.groupedIssueIds = undefined;
+        this.issuePaginationData = {};
+        this.groupedIssueCount = {};
+        if (shouldClearPaginationOptions) {
+          this.paginationOptions = undefined;
+        }
+      });
+      this.controller.abort();
+      this.controller = new AbortController();
+    }
   }
 
   /**
@@ -1653,13 +1723,14 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
    * @returns string | string[] of sortable fields to be used for sorting
    */
   populateIssueDataForSorting(
-    dataType: "state_id" | "label_ids" | "assignee_ids" | "module_ids" | "cycle_id",
+    dataType: "state_id" | "label_ids" | "assignee_ids" | "module_ids" | "cycle_id" | "estimate_point",
     dataIds: string | string[] | null | undefined,
+    projectId: string | undefined | null,
     order?: "asc" | "desc"
   ) {
     if (!dataIds) return;
 
-    const dataValues: string[] = [];
+    const dataValues: (string | number)[] = [];
     const isDataIdsArray = Array.isArray(dataIds);
     const dataIdsArray = isDataIdsArray ? dataIds : [dataIds];
 
@@ -1709,9 +1780,29 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         }
         break;
       }
+      case "estimate_point": {
+        // return if project Id does not exist
+        if (!projectId) break;
+        // get the estimate ID for the current Project
+        const currentProjectEstimateId =
+          this.rootIssueStore.rootStore.projectEstimate.currentActiveEstimateIdByProjectId(projectId);
+        // return if current Estimate Id for the project is not available
+        if (!currentProjectEstimateId) break;
+        // get Estimate based on Id
+        const estimate = this.rootIssueStore.rootStore.projectEstimate.estimateById(currentProjectEstimateId);
+        // If Estimate is not available, then return
+        if (!estimate) break;
+        // Get Estimate Value
+        const estimateKey = estimate?.estimatePointById(dataIds as string)?.key;
+
+        // If Value string i not available or empty then return
+        if (estimateKey === undefined) break;
+
+        dataValues.push(estimateKey);
+      }
     }
 
-    return isDataIdsArray ? (order ? orderBy(dataValues, undefined, [order])[0] : dataValues) : dataValues[0];
+    return isDataIdsArray ? (order ? orderBy(dataValues, undefined, [order]) : dataValues) : dataValues;
   }
 
   issuesSortWithOrderBy = (issueIds: string[], key: TIssueOrderByOptions | undefined): string[] => {
@@ -1723,11 +1814,17 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         return getIssueIds(orderBy(array, "sort_order"));
       case "state__name":
         return getIssueIds(
-          orderBy(array, (issue) => this.populateIssueDataForSorting("state_id", issue?.["state_id"]))
+          orderBy(array, (issue) =>
+            this.populateIssueDataForSorting("state_id", issue?.["state_id"], issue?.["project_id"])
+          )
         );
       case "-state__name":
         return getIssueIds(
-          orderBy(array, (issue) => this.populateIssueDataForSorting("state_id", issue?.["state_id"]), ["desc"])
+          orderBy(
+            array,
+            (issue) => this.populateIssueDataForSorting("state_id", issue?.["state_id"], issue?.["project_id"]),
+            ["desc"]
+          )
         );
       // dates
       case "created_at":
@@ -1761,11 +1858,11 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         );
 
       // custom
-      case "priority": {
+      case "-priority": {
         const sortArray = ISSUE_PRIORITIES.map((i) => i.key);
         return getIssueIds(orderBy(array, (currentIssue: TIssue) => indexOf(sortArray, currentIssue?.priority)));
       }
-      case "-priority": {
+      case "priority": {
         const sortArray = ISSUE_PRIORITIES.map((i) => i.key);
         return getIssueIds(
           orderBy(array, (currentIssue: TIssue) => indexOf(sortArray, currentIssue?.priority), ["desc"])
@@ -1778,15 +1875,23 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
       case "-attachment_count":
         return getIssueIds(orderBy(array, "attachment_count", ["desc"]));
 
-      case "estimate_point":
+      case "estimate_point__key":
         return getIssueIds(
-          orderBy(array, [getSortOrderToFilterEmptyValues.bind(null, "estimate_point"), "estimate_point"])
+          orderBy(array, [
+            getSortOrderToFilterEmptyValues.bind(null, "estimate_point"),
+            (issue) =>
+              this.populateIssueDataForSorting("estimate_point", issue?.["estimate_point"], issue?.["project_id"]),
+          ])
         ); //preferring sorting based on empty values to always keep the empty values below
-      case "-estimate_point":
+      case "-estimate_point__key":
         return getIssueIds(
           orderBy(
             array,
-            [getSortOrderToFilterEmptyValues.bind(null, "estimate_point"), "estimate_point"], //preferring sorting based on empty values to always keep the empty values below
+            [
+              getSortOrderToFilterEmptyValues.bind(null, "estimate_point"),
+              (issue) =>
+                this.populateIssueDataForSorting("estimate_point", issue?.["estimate_point"], issue?.["project_id"]),
+            ], //preferring sorting based on empty values to always keep the empty values below
             ["asc", "desc"]
           )
         );
@@ -1806,7 +1911,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         return getIssueIds(
           orderBy(array, [
             getSortOrderToFilterEmptyValues.bind(null, "label_ids"), //preferring sorting based on empty values to always keep the empty values below
-            (issue) => this.populateIssueDataForSorting("label_ids", issue?.["label_ids"], "asc"),
+            (issue) =>
+              this.populateIssueDataForSorting("label_ids", issue?.["label_ids"], issue?.["project_id"], "asc"),
           ])
         );
       case "-labels__name":
@@ -1815,7 +1921,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
             array,
             [
               getSortOrderToFilterEmptyValues.bind(null, "label_ids"), //preferring sorting based on empty values to always keep the empty values below
-              (issue) => this.populateIssueDataForSorting("label_ids", issue?.["label_ids"], "asc"),
+              (issue) =>
+                this.populateIssueDataForSorting("label_ids", issue?.["label_ids"], issue?.["project_id"], "asc"),
             ],
             ["asc", "desc"]
           )
@@ -1825,7 +1932,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         return getIssueIds(
           orderBy(array, [
             getSortOrderToFilterEmptyValues.bind(null, "module_ids"), //preferring sorting based on empty values to always keep the empty values below
-            (issue) => this.populateIssueDataForSorting("module_ids", issue?.["module_ids"], "asc"),
+            (issue) =>
+              this.populateIssueDataForSorting("module_ids", issue?.["module_ids"], issue?.["project_id"], "asc"),
           ])
         );
       case "-issue_module__module__name":
@@ -1834,7 +1942,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
             array,
             [
               getSortOrderToFilterEmptyValues.bind(null, "module_ids"), //preferring sorting based on empty values to always keep the empty values below
-              (issue) => this.populateIssueDataForSorting("module_ids", issue?.["module_ids"], "asc"),
+              (issue) =>
+                this.populateIssueDataForSorting("module_ids", issue?.["module_ids"], issue?.["project_id"], "asc"),
             ],
             ["asc", "desc"]
           )
@@ -1844,7 +1953,7 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         return getIssueIds(
           orderBy(array, [
             getSortOrderToFilterEmptyValues.bind(null, "cycle_id"), //preferring sorting based on empty values to always keep the empty values below
-            (issue) => this.populateIssueDataForSorting("cycle_id", issue?.["cycle_id"], "asc"),
+            (issue) => this.populateIssueDataForSorting("cycle_id", issue?.["cycle_id"], issue?.["project_id"], "asc"),
           ])
         );
       case "-issue_cycle__cycle__name":
@@ -1853,7 +1962,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
             array,
             [
               getSortOrderToFilterEmptyValues.bind(null, "cycle_id"), //preferring sorting based on empty values to always keep the empty values below
-              (issue) => this.populateIssueDataForSorting("cycle_id", issue?.["cycle_id"], "asc"),
+              (issue) =>
+                this.populateIssueDataForSorting("cycle_id", issue?.["cycle_id"], issue?.["project_id"], "asc"),
             ],
             ["asc", "desc"]
           )
@@ -1863,7 +1973,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
         return getIssueIds(
           orderBy(array, [
             getSortOrderToFilterEmptyValues.bind(null, "assignee_ids"), //preferring sorting based on empty values to always keep the empty values below
-            (issue) => this.populateIssueDataForSorting("assignee_ids", issue?.["assignee_ids"], "asc"),
+            (issue) =>
+              this.populateIssueDataForSorting("assignee_ids", issue?.["assignee_ids"], issue?.["project_id"], "asc"),
           ])
         );
       case "-assignees__first_name":
@@ -1872,7 +1983,8 @@ export abstract class BaseIssuesStore implements IBaseIssuesStore {
             array,
             [
               getSortOrderToFilterEmptyValues.bind(null, "assignee_ids"), //preferring sorting based on empty values to always keep the empty values below
-              (issue) => this.populateIssueDataForSorting("assignee_ids", issue?.["assignee_ids"], "asc"),
+              (issue) =>
+                this.populateIssueDataForSorting("assignee_ids", issue?.["assignee_ids"], issue?.["project_id"], "asc"),
             ],
             ["asc", "desc"]
           )

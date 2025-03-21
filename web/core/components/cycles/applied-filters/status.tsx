@@ -1,6 +1,7 @@
 import { observer } from "mobx-react";
 import { X } from "lucide-react";
-import { CYCLE_STATUS } from "@/constants/cycle";
+import { CYCLE_STATUS } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { cn } from "@/helpers/common.helper";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 
 export const AppliedStatusFilters: React.FC<Props> = observer((props) => {
   const { handleRemove, values, editable } = props;
+  const { t } = useTranslation();
 
   return (
     <>
@@ -20,12 +22,12 @@ export const AppliedStatusFilters: React.FC<Props> = observer((props) => {
           <div
             key={status}
             className={cn(
-              "flex items-center gap-1 rounded p-1 text-xs",
+              "flex items-center gap-1 rounded py-1 px-1.5 text-xs",
               statusDetails?.bgColor,
               statusDetails?.textColor
             )}
           >
-            {statusDetails?.title}
+            {statusDetails && t(statusDetails?.i18n_title)}
             {editable && (
               <button
                 type="button"

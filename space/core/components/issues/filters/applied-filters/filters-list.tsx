@@ -3,8 +3,8 @@
 import { observer } from "mobx-react";
 import { X } from "lucide-react";
 // types
-import { IStateLite } from "@plane/types";
-import { IIssueLabel, TFilters } from "@/types/issue";
+import { useTranslation } from "@plane/i18n";
+import { TFilters } from "@/types/issue";
 // components
 import { AppliedPriorityFilters } from "./priority";
 import { AppliedStateFilters } from "./state";
@@ -13,14 +13,13 @@ type Props = {
   appliedFilters: TFilters;
   handleRemoveAllFilters: () => void;
   handleRemoveFilter: (key: keyof TFilters, value: string | null) => void;
-  labels?: IIssueLabel[] | undefined;
-  states?: IStateLite[] | undefined;
 };
 
 export const replaceUnderscoreIfSnakeCase = (str: string) => str.replace(/_/g, " ");
 
 export const AppliedFiltersList: React.FC<Props> = observer((props) => {
-  const { appliedFilters = {}, handleRemoveAllFilters, handleRemoveFilter, states } = props;
+  const { appliedFilters = {}, handleRemoveAllFilters, handleRemoveFilter } = props;
+  const { t } = useTranslation();
 
   return (
     <div className="flex flex-wrap items-stretch gap-2">
@@ -52,10 +51,9 @@ export const AppliedFiltersList: React.FC<Props> = observer((props) => {
                 />
               )} */}
 
-              {filterKey === "state" && states && (
+              {filterKey === "state" && (
                 <AppliedStateFilters
                   handleRemove={(val) => handleRemoveFilter("state", val)}
-                  states={states}
                   values={filterValue ?? []}
                 />
               )}
@@ -76,7 +74,7 @@ export const AppliedFiltersList: React.FC<Props> = observer((props) => {
         onClick={handleRemoveAllFilters}
         className="flex items-center gap-2 rounded-md border border-custom-border-200 px-2 py-1 text-xs text-custom-text-300 hover:text-custom-text-200"
       >
-        Clear all
+        {t("common.clear_all")}
         <X size={12} strokeWidth={2} />
       </button>
     </div>

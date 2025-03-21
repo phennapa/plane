@@ -1,9 +1,12 @@
 import clone from "lodash/clone";
 import set from "lodash/set";
 import { makeObservable, observable, runInAction, action } from "mobx";
-import { TIssue, TInboxIssue, TInboxIssueStatus, TInboxDuplicateIssueDetails } from "@plane/types";
+import { TInboxIssue, TInboxIssueStatus } from "@plane/constants";
+import { TIssue, TInboxDuplicateIssueDetails } from "@plane/types";
 // helpers
 import { EInboxIssueStatus } from "@/helpers/inbox.helper";
+// local db
+import { addIssueToPersistanceLayer } from "@/local-db/utils/utils";
 // services
 import { InboxIssueService } from "@/services/inbox";
 import { IssueService } from "@/services/issue";
@@ -88,10 +91,18 @@ export class InboxIssueStore implements IInboxIssueStore {
 
     try {
       if (!this.issue.id) return;
+
       const inboxIssue = await this.inboxIssueService.update(this.workspaceSlug, this.projectId, this.issue.id, {
         status: status,
       });
       runInAction(() => set(this, "status", inboxIssue?.status));
+
+      // If issue accepted sync issue to local db
+      if (status === EInboxIssueStatus.ACCEPTED) {
+        const updatedIssue = { ...this.issue, ...inboxIssue.issue };
+        this.store.issue.issues.addIssue([updatedIssue]);
+        await addIssueToPersistanceLayer(updatedIssue);
+      }
     } catch {
       runInAction(() => set(this, "status", previousData.status));
     }
@@ -176,6 +187,21 @@ export class InboxIssueStore implements IInboxIssueStore {
         set(this.issue, issueKey, issue[issueKey]);
       });
       await this.issueService.patchIssue(this.workspaceSlug, this.projectId, this.issue.id, issue);
+      if (issue.cycle_id) {
+        await this.store.issue.issueDetail.addIssueToCycle(this.workspaceSlug, this.projectId, issue.cycle_id, [
+          this.issue.id,
+        ]);
+      }
+      if (issue.module_ids) {
+        await this.store.issue.issueDetail.changeModulesInIssue(
+          this.workspaceSlug,
+          this.projectId,
+          this.issue.id,
+          issue.module_ids,
+          []
+        );
+      }
+
       // fetching activity
       this.fetchIssueActivity();
     } catch {

@@ -52,12 +52,13 @@ export const IssueLinkRoot: FC<TIssueLinkRoot> = (props) => {
             title: "Link created",
           });
           toggleIssueLinkModal(false);
-        } catch (error) {
+        } catch (error: any) {
           setToast({
-            message: "The link could not be created",
+            message: error?.data?.error ?? "The link could not be created",
             type: TOAST_TYPE.ERROR,
             title: "Link not created",
           });
+          throw error;
         }
       },
       update: async (linkId: string, data: Partial<TIssueLink>) => {
@@ -76,6 +77,7 @@ export const IssueLinkRoot: FC<TIssueLinkRoot> = (props) => {
             type: TOAST_TYPE.ERROR,
             title: "Link not updated",
           });
+          throw error;
         }
       },
       remove: async (linkId: string) => {
@@ -100,11 +102,15 @@ export const IssueLinkRoot: FC<TIssueLinkRoot> = (props) => {
     [workspaceSlug, projectId, issueId, createLink, updateLink, removeLink, toggleIssueLinkModal]
   );
 
+  const handleOnClose = () => {
+    toggleIssueLinkModal(false);
+  };
+
   return (
     <>
       <IssueLinkCreateUpdateModal
         isModalOpen={isIssueLinkModal}
-        handleModal={toggleIssueLinkModal}
+        handleOnClose={handleOnClose}
         linkOperations={handleLinkOperations}
       />
 

@@ -3,8 +3,10 @@ import isEmpty from "lodash/isEmpty";
 import pickBy from "lodash/pickBy";
 import set from "lodash/set";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
-// base class
+// plane constants
 import { computedFn } from "mobx-utils";
+import { EIssueLayoutTypes, EIssueFilterType, EIssuesStoreType } from "@plane/constants";
+// base class
 import {
   IIssueFilterOptions,
   IIssueDisplayFilterOptions,
@@ -15,7 +17,6 @@ import {
   TStaticViewTypes,
   IssuePaginationOptions,
 } from "@plane/types";
-import { EIssueFilterType, EIssueLayoutTypes, EIssuesStoreType } from "@/constants/issue";
 // services
 import { handleIssueQueryParamsByLayout } from "@/helpers/issue.helper";
 import { WorkspaceService } from "@/plane-web/services";
@@ -143,6 +144,7 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
       const _filters = this.handleIssuesLocalFilters.get(EIssuesStoreType.GLOBAL, workspaceSlug, undefined, viewId);
       displayFilters = this.computedDisplayFilters(_filters?.display_filters, {
         layout: EIssueLayoutTypes.SPREADSHEET,
+        order_by: "-created_at",
       });
       displayProperties = this.computedDisplayProperties(_filters?.display_properties);
       kanbanFilters = {
@@ -158,8 +160,14 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
         filters = this.computedFilters(_filters?.filters);
         displayFilters = this.computedDisplayFilters(_filters?.display_filters, {
           layout: EIssueLayoutTypes.SPREADSHEET,
+          order_by: "-created_at",
         });
         displayProperties = this.computedDisplayProperties(_filters?.display_properties);
+      }
+
+      // override existing order by if ordered by manual sort_order
+      if (displayFilters.order_by === "sort_order") {
+        displayFilters.order_by = "-created_at";
       }
 
       runInAction(() => {
@@ -278,7 +286,7 @@ export class WorkspaceIssuesFilter extends IssueFilterHelperStore implements IWo
 
           const currentUserId = this.rootIssueStore.currentUserId;
           if (currentUserId)
-            this.handleIssuesLocalFilters.set(EIssuesStoreType.PROJECT, type, workspaceSlug, undefined, viewId, {
+            this.handleIssuesLocalFilters.set(EIssuesStoreType.GLOBAL, type, workspaceSlug, undefined, viewId, {
               kanban_filters: _filters.kanbanFilters,
             });
 

@@ -10,6 +10,7 @@ import { DateDropdown, PriorityDropdown, MemberDropdown, StateDropdown } from "@
 import { IssueLabel, TIssueOperations } from "@/components/issues";
 // helper
 import { getDate, renderFormattedPayloadDate } from "@/helpers/date-time.helper";
+import { generateWorkItemLink } from "@/helpers/issue.helper";
 // hooks
 import { useProject } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
@@ -34,9 +35,17 @@ export const InboxIssueContentProperties: React.FC<Props> = observer((props) => 
   minDate?.setDate(minDate.getDate());
   if (!issue || !issue?.id) return <></>;
 
+  const duplicateWorkItemLink = generateWorkItemLink({
+    workspaceSlug: workspaceSlug?.toString(),
+    projectId,
+    issueId: duplicateIssueDetails?.id,
+    projectIdentifier: currentProjectDetails?.identifier,
+    sequenceId: duplicateIssueDetails?.sequence_id,
+  });
+
   return (
-    <div className="flex h-min w-full flex-col divide-y-2 divide-custom-border-200 overflow-hidden">
-      <div className="h-min w-full overflow-y-auto px-3">
+    <div className="flex w-full flex-col divide-y-2 divide-custom-border-200">
+      <div className="w-full overflow-y-auto">
         <h5 className="text-sm font-medium my-4">Properties</h5>
         <div className={`divide-y-2 divide-custom-border-200 ${!isEditable ? "opacity-60" : ""}`}>
           <div className="flex flex-col gap-3">
@@ -169,9 +178,9 @@ export const InboxIssueContentProperties: React.FC<Props> = observer((props) => 
                 </div>
 
                 <ControlLink
-                  href={`/${workspaceSlug}/projects/${projectId}/issues/${duplicateIssueDetails?.id}`}
+                  href={duplicateWorkItemLink}
                   onClick={() => {
-                    router.push(`/${workspaceSlug}/projects/${projectId}/issues/${duplicateIssueDetails?.id}`);
+                    router.push(duplicateWorkItemLink);
                   }}
                   target="_self"
                 >

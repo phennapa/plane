@@ -68,14 +68,15 @@ export const copyTextToClipboard = async (text: string) => {
 /**
  * @description: This function copies the url to clipboard after prepending the origin URL to it
  * @param {string} path
+ * @param {boolean} addSlash
  * @example:
  * const text = copyUrlToClipboard("path");
  * copied URL: origin_url/path
  */
-export const copyUrlToClipboard = async (path: string) => {
+export const copyUrlToClipboard = async (path: string, addSlash: boolean = true) => {
   const originUrl = typeof window !== "undefined" && window.location.origin ? window.location.origin : "";
 
-  await copyTextToClipboard(`${originUrl}/${path}`);
+  await copyTextToClipboard(`${originUrl}${addSlash ? "/" : ""}${path}`);
 };
 
 export const generateRandomColor = (string: string): string => {
@@ -230,9 +231,49 @@ export const checkEmailValidity = (email: string): boolean => {
   return isEmailValid;
 };
 
-export const isEmptyHtmlString = (htmlString: string) => {
+export const isEmptyHtmlString = (htmlString: string, allowedHTMLTags: string[] = []) => {
   // Remove HTML tags using regex
-  const cleanText = DOMPurify.sanitize(htmlString, { ALLOWED_TAGS: ["img"] });
+  const cleanText = DOMPurify.sanitize(htmlString, { ALLOWED_TAGS: allowedHTMLTags });
   // Trim the string and check if it's empty
   return cleanText.trim() === "";
+};
+
+/**
+ * @description this function returns whether a comment is empty or not by checking for the following conditions-
+ * 1. If comment is undefined
+ * 2. If comment is an empty string
+ * 3. If comment is "<p></p>"
+ * @param {string | undefined} comment
+ * @returns {boolean}
+ */
+export const isCommentEmpty = (comment: string | undefined): boolean => {
+  // return true if comment is undefined
+  if (!comment) return true;
+  return (
+    comment?.trim() === "" ||
+    comment === "<p></p>" ||
+    isEmptyHtmlString(comment ?? "", ["img", "mention-component", "image-component"])
+  );
+};
+
+/**
+ * @description
+ * This function test whether a URL is valid or not.
+ *
+ * It accepts URLs with or without the protocol.
+ * @param {string} url
+ * @returns {boolean}
+ * @example
+ * checkURLValidity("https://example.com") => true
+ * checkURLValidity("example.com") => true
+ * checkURLValidity("example") => false
+ */
+export const checkURLValidity = (url: string): boolean => {
+  if (!url) return false;
+
+  // regex to support complex query parameters and fragments
+  const urlPattern =
+    /^(https?:\/\/)?((([a-z\d-]+\.)*[a-z\d-]+\.[a-z]{2,6})|(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}))(:\d+)?(\/[\w.-]*)*(\?[^#\s]*)?(#[\w-]*)?$/i;
+
+  return urlPattern.test(url);
 };

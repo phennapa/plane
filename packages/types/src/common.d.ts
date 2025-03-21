@@ -19,5 +19,10 @@ export type TLogoProps = {
   icon?: {
     name?: string;
     color?: string;
+    background_color?: string;
   };
 };
+
+export type TNameDescriptionLoader = "submitting" | "submitted" | "saved";
+
+export type TFetchStatus = "partial" | "complete" | undefined;

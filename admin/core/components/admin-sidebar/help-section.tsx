@@ -5,13 +5,14 @@ import { observer } from "mobx-react";
 import Link from "next/link";
 import { ExternalLink, FileText, HelpCircle, MoveLeft } from "lucide-react";
 import { Transition } from "@headlessui/react";
-// ui
+// plane internal packages
+import { WEB_BASE_URL } from "@plane/constants";
 import { DiscordIcon, GithubIcon, Tooltip } from "@plane/ui";
-// helpers
-import { WEB_BASE_URL, cn } from "@/helpers/common.helper";
+import { cn } from "@plane/utils";
 // hooks
 import { useTheme } from "@/hooks/store";
 // assets
+// eslint-disable-next-line import/order
 import packageJson from "package.json";
 
 const helpOptions = [
@@ -52,13 +53,13 @@ export const HelpSection: FC = observer(() => {
       )}
     >
       <div className={`flex items-center gap-1 ${isSidebarCollapsed ? "flex-col justify-center" : "w-full"}`}>
-        <Tooltip tooltipContent="Redirect to plane" position="right" className="ml-4" disabled={!isSidebarCollapsed}>
+        <Tooltip tooltipContent="Redirect to Plane" position="right" className="ml-4" disabled={!isSidebarCollapsed}>
           <a
             href={redirectionLink}
             className={`relative px-2 py-1.5 flex items-center gap-2 font-medium rounded border border-custom-primary-100/20 bg-custom-primary-100/10 text-xs text-custom-primary-200 whitespace-nowrap`}
           >
             <ExternalLink size={14} />
-            {!isSidebarCollapsed && "Redirect to plane"}
+            {!isSidebarCollapsed && "Redirect to Plane"}
           </a>
         </Tooltip>
         <Tooltip tooltipContent="Help" position={isSidebarCollapsed ? "right" : "top"} className="ml-4">
@@ -96,7 +97,7 @@ export const HelpSection: FC = observer(() => {
           leaveTo="transform opacity-0 scale-95"
         >
           <div
-            className={`absolute bottom-2 min-w-[10rem] ${
+            className={`absolute bottom-2 min-w-[10rem] z-[15] ${
               isSidebarCollapsed ? "left-full" : "-left-[75px]"
             } divide-y divide-custom-border-200 whitespace-nowrap rounded bg-custom-background-100 p-1 shadow-custom-shadow-xs`}
             ref={helpOptionsRef}

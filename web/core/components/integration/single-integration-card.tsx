@@ -6,13 +6,14 @@ import Image from "next/image";
 import { useParams } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import { CheckCircle } from "lucide-react";
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { IAppIntegration, IWorkspaceIntegration } from "@plane/types";
 // ui
 import { Button, Loader, Tooltip, TOAST_TYPE, setToast } from "@plane/ui";
 // constants
 import { WORKSPACE_INTEGRATIONS } from "@/constants/fetch-keys";
 // hooks
-import { useUser, useInstance } from "@/hooks/store";
+import { useInstance, useUserPermissions } from "@/hooks/store";
 import useIntegrationPopup from "@/hooks/use-integration-popup";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // services
@@ -29,12 +30,12 @@ const integrationDetails: { [key: string]: any } = {
   github: {
     logo: GithubLogo,
     installed: "Activate GitHub on individual projects to sync with specific repositories.",
-    notInstalled: "Connect with GitHub with your Plane workspace to sync project issues.",
+    notInstalled: "Connect with GitHub with your Plane workspace to sync project work items.",
   },
   slack: {
     logo: SlackLogo,
     installed: "Activate Slack on individual projects to sync with specific channels.",
-    notInstalled: "Connect with Slack with your Plane workspace to sync project issues.",
+    notInstalled: "Connect with Slack with your Plane workspace to sync project work items.",
   },
 };
 
@@ -48,11 +49,9 @@ export const SingleIntegrationCard: React.FC<Props> = observer(({ integration })
   const { workspaceSlug } = useParams();
   // store hooks
   const { config } = useInstance();
-  const {
-    membership: { currentWorkspaceRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
 
-  const isUserAdmin = currentWorkspaceRole === 20;
+  const isUserAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.WORKSPACE);
   const { isMobile } = usePlatformOS();
   const { startAuth, isConnecting: isInstalling } = useIntegrationPopup({
     provider: integration.provider,

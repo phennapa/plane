@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import xor from "lodash/xor";
 import { observer } from "mobx-react";
+import { useTranslation } from "@plane/i18n";
 // hooks
 // components
 import { ModuleDropdown } from "@/components/dropdowns";
@@ -22,6 +23,7 @@ type TIssueModuleSelect = {
 
 export const IssueModuleSelect: React.FC<TIssueModuleSelect> = observer((props) => {
   const { className = "", workspaceSlug, projectId, issueId, issueOperations, disabled = false } = props;
+  const { t } = useTranslation();
   // states
   const [isUpdating, setIsUpdating] = useState(false);
   // store hooks
@@ -59,16 +61,17 @@ export const IssueModuleSelect: React.FC<TIssueModuleSelect> = observer((props) 
         projectId={projectId}
         value={issue?.module_ids ?? []}
         onChange={handleIssueModuleChange}
-        placeholder="No module"
+        placeholder={t("module.no_module")}
         disabled={disableSelect}
         className="group h-full w-full"
-        buttonContainerClassName="w-full"
+        buttonContainerClassName="w-full rounded"
         buttonClassName={`min-h-8 text-sm justify-between ${issue?.module_ids?.length ? "" : "text-custom-text-400"}`}
         buttonVariant="transparent-with-text"
         hideIcon
         dropdownArrow
         dropdownArrowClassName="h-3.5 w-3.5 hidden group-hover:inline"
         multiple
+        itemClassName="px-2"
       />
     </div>
   );

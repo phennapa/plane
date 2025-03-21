@@ -1,21 +1,17 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 // icons
 import { Eye, EyeOff, Info, X, XCircle } from "lucide-react";
-// ui
+// plane imports
+import { FORGOT_PASSWORD, SIGN_IN_WITH_CODE, SIGN_IN_WITH_PASSWORD, SIGN_UP_WITH_PASSWORD } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { Button, Input, Spinner } from "@plane/ui";
 // components
 import { ForgotPasswordPopover, PasswordStrengthMeter } from "@/components/account";
 // constants
-import {
-  FORGOT_PASSWORD,
-  SIGN_IN_WITH_CODE,
-  SIGN_IN_WITH_PASSWORD,
-  SIGN_UP_WITH_PASSWORD,
-} from "@/constants/event-tracker";
 // helpers
 import { EAuthModes, EAuthSteps } from "@/helpers/authentication.helper";
 import { API_BASE_URL } from "@/helpers/common.helper";
@@ -49,10 +45,14 @@ const authService = new AuthService();
 
 export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
   const { email, isSMTPConfigured, handleAuthStep, handleEmailClear, mode, nextPath } = props;
+  // plane imports
+  const { t } = useTranslation();
   // hooks
   const { captureEvent } = useEventTracker();
+  // ref
+  const formRef = useRef<HTMLFormElement>(null);
   // states
-  const [csrfToken, setCsrfToken] = useState<string | undefined>(undefined);
+  const [csrfPromise, setCsrfPromise] = useState<Promise<{ csrf_token: string }> | undefined>(undefined);
   const [passwordFormData, setPasswordFormData] = useState<TPasswordFormValues>({ ...defaultValues, email });
   const [showPassword, setShowPassword] = useState({
     password: false,
@@ -70,9 +70,11 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
     setPasswordFormData((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
-    if (csrfToken === undefined)
-      authService.requestCSRFToken().then((data) => data?.csrf_token && setCsrfToken(data.csrf_token));
-  }, [csrfToken]);
+    if (csrfPromise === undefined) {
+      const promise = authService.requestCSRFToken();
+      setCsrfPromise(promise);
+    }
+  }, [csrfPromise]);
 
   const redirectToUniqueCodeSignIn = async () => {
     handleAuthStep(EAuthSteps.UNIQUE_CODE);
@@ -88,7 +90,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
             href={`/accounts/forgot-password?email=${encodeURIComponent(email)}`}
             className="text-xs font-medium text-custom-primary-100"
           >
-            Forgot your password?
+            {t("auth.common.forgot_password")}
           </Link>
         ) : (
           <ForgotPasswordPopover />
@@ -115,6 +117,14 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
   const confirmPassword = passwordFormData?.confirm_password ?? "";
   const renderPasswordMatchError = !isRetryPasswordInputFocused || confirmPassword.length >= password.length;
 
+  const handleCSRFToken = async () => {
+    if (!formRef || !formRef.current) return;
+    const token = await csrfPromise;
+    if (!token?.csrf_token) return;
+    const csrfElement = formRef.current.querySelector("input[name=csrfmiddlewaretoken]");
+    csrfElement?.setAttribute("value", token?.csrf_token);
+  };
+
   return (
     <>
       {isBannerMessage && mode === EAuthModes.SIGN_UP && (
@@ -122,7 +132,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
           <div className="w-4 h-4 flex-shrink-0 relative flex justify-center items-center">
             <Info size={16} className="text-red-500" />
           </div>
-          <div className="w-full text-sm font-medium text-red-500">Try setting-up a strong password to proceed</div>
+          <div className="w-full text-sm font-medium text-red-500">{t("auth.sign_up.errors.password.strength")}</div>
           <div
             className="relative ml-auto w-6 h-6 rounded-sm flex justify-center items-center transition-all cursor-pointer hover:bg-red-500/20 text-custom-primary-100/80"
             onClick={() => setBannerMessage(false)}
@@ -132,11 +142,13 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
         </div>
       )}
       <form
+        ref={formRef}
         className="mt-5 space-y-4"
         method="POST"
         action={`${API_BASE_URL}/auth/${mode === EAuthModes.SIGN_IN ? "sign-in" : "sign-up"}/`}
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault(); // Prevent form from submitting by default
+          await handleCSRFToken();
           const isPasswordValid =
             mode === EAuthModes.SIGN_UP
               ? getPasswordStrength(passwordFormData.password) === E_PASSWORD_STRENGTH.STRENGTH_VALID
@@ -144,19 +156,19 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
           if (isPasswordValid) {
             setIsSubmitting(true);
             captureEvent(mode === EAuthModes.SIGN_IN ? SIGN_IN_WITH_PASSWORD : SIGN_UP_WITH_PASSWORD);
-            event.currentTarget.submit(); // Manually submit the form if the condition is met
+            if (formRef.current) formRef.current.submit(); // Manually submit the form if the condition is met
           } else {
             setBannerMessage(true);
           }
         }}
         onError={() => setIsSubmitting(false)}
       >
-        <input type="hidden" name="csrfmiddlewaretoken" value={csrfToken} />
+        <input type="hidden" name="csrfmiddlewaretoken" />
         <input type="hidden" value={passwordFormData.email} name="email" />
         {nextPath && <input type="hidden" value={nextPath} name="next_path" />}
         <div className="space-y-1">
           <label className="text-sm font-medium text-onboarding-text-300" htmlFor="email">
-            Email
+            {t("auth.common.email.label")}
           </label>
           <div
             className={`relative flex items-center rounded-md bg-onboarding-background-200 border border-onboarding-border-100`}
@@ -167,7 +179,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
               type="email"
               value={passwordFormData.email}
               onChange={(e) => handleFormChange("email", e.target.value)}
-              placeholder="name@company.com"
+              placeholder={t("auth.common.email.placeholder")}
               className={`disable-autofill-style h-[46px] w-full placeholder:text-onboarding-text-400 border-0`}
               disabled
             />
@@ -182,7 +194,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
 
         <div className="space-y-1">
           <label className="text-sm text-onboarding-text-300 font-medium" htmlFor="password">
-            {mode === EAuthModes.SIGN_IN ? "Password" : "Set a password"}
+            {mode === EAuthModes.SIGN_IN ? t("auth.common.password.label") : t("auth.common.password.set_password")}
           </label>
           <div className="relative flex items-center rounded-md bg-onboarding-background-200">
             <Input
@@ -190,10 +202,11 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
               name="password"
               value={passwordFormData.password}
               onChange={(e) => handleFormChange("password", e.target.value)}
-              placeholder="Enter password"
+              placeholder={t("auth.common.password.placeholder")}
               className="disable-autofill-style h-[46px] w-full border border-onboarding-border-100 !bg-onboarding-background-200 pr-12 placeholder:text-onboarding-text-400"
               onFocus={() => setIsPasswordInputFocused(true)}
               onBlur={() => setIsPasswordInputFocused(false)}
+              autoComplete="on"
               autoFocus
             />
             {showPassword?.password ? (
@@ -214,7 +227,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
         {mode === EAuthModes.SIGN_UP && (
           <div className="space-y-1">
             <label className="text-sm text-onboarding-text-300 font-medium" htmlFor="confirm_password">
-              Confirm password
+              {t("auth.common.password.confirm_password.label")}
             </label>
             <div className="relative flex items-center rounded-md bg-onboarding-background-200">
               <Input
@@ -222,7 +235,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
                 name="confirm_password"
                 value={passwordFormData.confirm_password}
                 onChange={(e) => handleFormChange("confirm_password", e.target.value)}
-                placeholder="Confirm password"
+                placeholder={t("auth.common.password.confirm_password.placeholder")}
                 className="disable-autofill-style h-[46px] w-full border border-onboarding-border-100 !bg-onboarding-background-200 pr-12 placeholder:text-onboarding-text-400"
                 onFocus={() => setIsRetryPasswordInputFocused(true)}
                 onBlur={() => setIsRetryPasswordInputFocused(false)}
@@ -241,7 +254,9 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
             </div>
             {!!passwordFormData.confirm_password &&
               passwordFormData.password !== passwordFormData.confirm_password &&
-              renderPasswordMatchError && <span className="text-sm text-red-500">Passwords don{"'"}t match</span>}
+              renderPasswordMatchError && (
+                <span className="text-sm text-red-500">{t("auth.common.password.errors.match")}</span>
+              )}
           </div>
         )}
 
@@ -252,9 +267,9 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
                 {isSubmitting ? (
                   <Spinner height="20px" width="20px" />
                 ) : isSMTPConfigured ? (
-                  "Continue"
+                  t("common.continue")
                 ) : (
-                  "Go to workspace"
+                  t("common.go_to_workspace")
                 )}
               </Button>
               {isSMTPConfigured && (
@@ -265,7 +280,7 @@ export const AuthPasswordForm: React.FC<Props> = observer((props: Props) => {
                   className="w-full"
                   size="lg"
                 >
-                  Sign in with unique code
+                  {t("auth.common.sign_in_with_unique_code")}
                 </Button>
               )}
             </>

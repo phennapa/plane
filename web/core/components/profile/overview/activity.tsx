@@ -4,7 +4,8 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 // ui
-import { Loader } from "@plane/ui";
+import { useTranslation } from "@plane/i18n";
+import { Loader, Card } from "@plane/ui";
 // components
 import { ActivityMessage, IssueLink } from "@/components/core";
 import { ProfileEmptyState } from "@/components/ui";
@@ -12,12 +13,13 @@ import { ProfileEmptyState } from "@/components/ui";
 import { USER_PROFILE_ACTIVITY } from "@/constants/fetch-keys";
 // helpers
 import { calculateTimeAgo } from "@/helpers/date-time.helper";
-//hooks
-// services
+import { getFileURL } from "@/helpers/file.helper";
+// hooks
 import { useUser } from "@/hooks/store";
-import recentActivityEmptyState from "@/public/empty-state/recent_activity.svg";
-import { UserService } from "@/services/user.service";
 // assets
+import recentActivityEmptyState from "@/public/empty-state/recent_activity.svg";
+// services
+import { UserService } from "@/services/user.service";
 
 const userService = new UserService();
 
@@ -25,6 +27,7 @@ export const ProfileActivity = observer(() => {
   const { workspaceSlug, userId } = useParams();
   // store hooks
   const { data: currentUser } = useUser();
+  const { t } = useTranslation();
 
   const { data: userProfileActivity } = useSWR(
     workspaceSlug && userId ? USER_PROFILE_ACTIVITY(workspaceSlug.toString(), userId.toString(), {}) : null,
@@ -38,17 +41,17 @@ export const ProfileActivity = observer(() => {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-lg font-medium">Recent activity</h3>
-      <div className="rounded border border-custom-border-100 p-6">
+      <h3 className="text-lg font-medium">{t("profile.stats.recent_activity.title")}</h3>
+      <Card>
         {userProfileActivity ? (
           userProfileActivity.results.length > 0 ? (
             <div className="space-y-5">
               {userProfileActivity.results.map((activity) => (
                 <div key={activity.id} className="flex gap-3">
                   <div className="flex-shrink-0 grid place-items-center overflow-hidden rounded h-6 w-6">
-                    {activity.actor_detail?.avatar && activity.actor_detail?.avatar !== "" ? (
+                    {activity.actor_detail?.avatar_url && activity.actor_detail?.avatar_url !== "" ? (
                       <img
-                        src={activity.actor_detail?.avatar}
+                        src={getFileURL(activity.actor_detail?.avatar_url)}
                         alt={activity.actor_detail?.display_name}
                         className="rounded"
                       />
@@ -80,8 +83,8 @@ export const ProfileActivity = observer(() => {
             </div>
           ) : (
             <ProfileEmptyState
-              title="No Data yet"
-              description="We couldn’t find data. Kindly view your inputs"
+              title={t("no_data_yet")}
+              description={t("profile.stats.recent_activity.empty")}
               image={recentActivityEmptyState}
             />
           )
@@ -94,7 +97,7 @@ export const ProfileActivity = observer(() => {
             <Loader.Item height="40px" />
           </Loader>
         )}
-      </div>
+      </Card>
     </div>
   );
 });

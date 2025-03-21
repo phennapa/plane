@@ -1,15 +1,19 @@
 "use client";
 
-import isToday from "date-fns/isToday";
+import { isToday } from "date-fns/isToday";
 import { observer } from "mobx-react";
+// types
 import { TIssue, TWidgetIssue } from "@plane/types";
-// hooks
 // ui
 import { Avatar, AvatarGroup, ControlLink, PriorityIcon } from "@plane/ui";
 // helpers
 import { findTotalDaysInRange, getDate, renderFormattedDate } from "@/helpers/date-time.helper";
+import { getFileURL } from "@/helpers/file.helper";
+import { generateWorkItemLink } from "@/helpers/issue.helper";
+// hooks
 import { useIssueDetail, useMember, useProject } from "@/hooks/store";
-// types
+// plane web components
+import { IssueIdentifier } from "@/plane-web/components/issues";
 
 export type IssueListItemProps = {
   issueId: string;
@@ -38,27 +42,48 @@ export const AssignedUpcomingIssueListItem: React.FC<IssueListItemProps> = obser
 
   const targetDate = getDate(issueDetails.target_date);
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issueDetails?.project_id,
+    issueId: issueDetails?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issueDetails?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issueDetails.project_id}/issues/${issueDetails.id}`}
+      href={workItemLink}
       onClick={() => onClick(issueDetails)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-4 flex items-center gap-3">
-        <PriorityIcon priority={issueDetails.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issueDetails.sequence_id}
-        </span>
+      <div className="col-span-7 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issueDetails.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issueDetails.name}</h6>
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issueDetails.priority} size={12} withContainer />
+      </div>
+      <div className="text-center text-xs col-span-2">
         {targetDate ? (isToday(targetDate) ? "Today" : renderFormattedDate(targetDate)) : "-"}
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center text-xs col-span-2">
         {blockedByIssues.length > 0
           ? blockedByIssues.length > 1
             ? `${blockedByIssues.length} blockers`
-            : `${blockedByIssueProjectDetails?.identifier} ${blockedByIssues[0]?.sequence_id}`
+            : blockedByIssueProjectDetails && (
+                <IssueIdentifier
+                  projectIdentifier={blockedByIssueProjectDetails?.identifier}
+                  projectId={blockedByIssueProjectDetails?.id}
+                  issueSequenceId={blockedByIssues[0]?.sequence_id}
+                  textContainerClassName="text-xs text-custom-text-200 font-medium"
+                />
+              )
           : "-"}
       </div>
     </ControlLink>
@@ -85,27 +110,47 @@ export const AssignedOverdueIssueListItem: React.FC<IssueListItemProps> = observ
 
   const dueBy = findTotalDaysInRange(getDate(issueDetails.target_date), new Date(), false) ?? 0;
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issueDetails?.project_id,
+    issueId: issueDetails?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issueDetails?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issueDetails.project_id}/issues/${issueDetails.id}`}
+      href={workItemLink}
       onClick={() => onClick(issueDetails)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-4 flex items-center gap-3">
-        <PriorityIcon priority={issueDetails.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issueDetails.sequence_id}
-        </span>
+      <div className="col-span-7 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issueDetails.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issueDetails.name}</h6>
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issueDetails.priority} size={12} withContainer />
+      </div>
+      <div className="text-center text-xs col-span-2">
         {dueBy} {`day${dueBy > 1 ? "s" : ""}`}
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center text-xs col-span-2">
         {blockedByIssues.length > 0
           ? blockedByIssues.length > 1
             ? `${blockedByIssues.length} blockers`
-            : `${blockedByIssueProjectDetails?.identifier} ${blockedByIssues[0]?.sequence_id}`
+            : blockedByIssueProjectDetails && (
+                <IssueIdentifier
+                  issueId={blockedByIssues[0]?.id}
+                  projectId={blockedByIssueProjectDetails?.id}
+                  textContainerClassName="text-xs text-custom-text-200 font-medium"
+                />
+              )
           : "-"}
       </div>
     </ControlLink>
@@ -126,18 +171,32 @@ export const AssignedCompletedIssueListItem: React.FC<IssueListItemProps> = obse
 
   const projectDetails = getProjectById(issueDetails.project_id);
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issueDetails?.project_id,
+    issueId: issueDetails?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issueDetails?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issueDetails.project_id}/issues/${issueDetails.id}`}
+      href={workItemLink}
       onClick={() => onClick(issueDetails)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-6 flex items-center gap-3">
-        <PriorityIcon priority={issueDetails.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issueDetails.sequence_id}
-        </span>
+      <div className="col-span-11 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issueDetails.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issueDetails.name}</h6>
+      </div>
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issueDetails.priority} size={12} withContainer />
       </div>
     </ControlLink>
   );
@@ -159,23 +218,37 @@ export const CreatedUpcomingIssueListItem: React.FC<IssueListItemProps> = observ
   const projectDetails = getProjectById(issue.project_id);
   const targetDate = getDate(issue.target_date);
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issue?.project_id,
+    issueId: issue?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issue?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issue.project_id}/issues/${issue.id}`}
+      href={workItemLink}
       onClick={() => onClick(issue)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-4 flex items-center gap-3">
-        <PriorityIcon priority={issue.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issue.sequence_id}
-        </span>
+      <div className="col-span-7 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issue.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issue.name}</h6>
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issue.priority} size={12} withContainer />
+      </div>
+      <div className="text-center text-xs col-span-2">
         {targetDate ? (isToday(targetDate) ? "Today" : renderFormattedDate(targetDate)) : "-"}
       </div>
-      <div className="flex justify-center text-xs">
+      <div className="flex justify-center text-xs col-span-2">
         {issue.assignee_ids && issue.assignee_ids?.length > 0 ? (
           <AvatarGroup>
             {issue.assignee_ids?.map((assigneeId) => {
@@ -183,7 +256,9 @@ export const CreatedUpcomingIssueListItem: React.FC<IssueListItemProps> = observ
 
               if (!userDetails) return null;
 
-              return <Avatar key={assigneeId} src={userDetails.avatar} name={userDetails.display_name} />;
+              return (
+                <Avatar key={assigneeId} src={getFileURL(userDetails.avatar_url)} name={userDetails.display_name} />
+              );
             })}
           </AvatarGroup>
         ) : (
@@ -211,23 +286,37 @@ export const CreatedOverdueIssueListItem: React.FC<IssueListItemProps> = observe
 
   const dueBy: number = findTotalDaysInRange(getDate(issue.target_date), new Date(), false) ?? 0;
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issue?.project_id,
+    issueId: issue?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issue?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issue.project_id}/issues/${issue.id}`}
+      href={workItemLink}
       onClick={() => onClick(issue)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-4 flex items-center gap-3">
-        <PriorityIcon priority={issue.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issue.sequence_id}
-        </span>
+      <div className="col-span-7 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issue.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issue.name}</h6>
       </div>
-      <div className="text-center text-xs">
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issue.priority} size={12} withContainer />
+      </div>
+      <div className="text-center text-xs col-span-2">
         {dueBy} {`day${dueBy > 1 ? "s" : ""}`}
       </div>
-      <div className="flex justify-center text-xs">
+      <div className="flex justify-center text-xs col-span-2">
         {issue.assignee_ids.length > 0 ? (
           <AvatarGroup>
             {issue.assignee_ids?.map((assigneeId) => {
@@ -235,7 +324,9 @@ export const CreatedOverdueIssueListItem: React.FC<IssueListItemProps> = observe
 
               if (!userDetails) return null;
 
-              return <Avatar key={assigneeId} src={userDetails.avatar} name={userDetails.display_name} />;
+              return (
+                <Avatar key={assigneeId} src={getFileURL(userDetails.avatar_url)} name={userDetails.display_name} />
+              );
             })}
           </AvatarGroup>
         ) : (
@@ -261,20 +352,34 @@ export const CreatedCompletedIssueListItem: React.FC<IssueListItemProps> = obser
 
   const projectDetails = getProjectById(issue.project_id);
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug,
+    projectId: issue?.project_id,
+    issueId: issue?.id,
+    projectIdentifier: projectDetails?.identifier,
+    sequenceId: issue?.sequence_id,
+  });
+
   return (
     <ControlLink
-      href={`/${workspaceSlug}/projects/${issue.project_id}/issues/${issue.id}`}
+      href={workItemLink}
       onClick={() => onClick(issue)}
-      className="grid grid-cols-6 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
+      className="grid grid-cols-12 gap-1 rounded px-3 py-2 hover:bg-custom-background-80"
     >
-      <div className="col-span-5 flex items-center gap-3">
-        <PriorityIcon priority={issue.priority} withContainer />
-        <span className="flex-shrink-0 text-xs font-medium">
-          {projectDetails?.identifier} {issue.sequence_id}
-        </span>
+      <div className="col-span-9 flex items-center gap-3">
+        {projectDetails && (
+          <IssueIdentifier
+            issueId={issue.id}
+            projectId={projectDetails?.id}
+            textContainerClassName="text-xs text-custom-text-200 font-medium"
+          />
+        )}
         <h6 className="flex-grow truncate text-sm">{issue.name}</h6>
       </div>
-      <div className="flex justify-center text-xs">
+      <div className="flex justify-center col-span-1 items-center">
+        <PriorityIcon priority={issue.priority} size={12} withContainer />
+      </div>
+      <div className="flex justify-center text-xs col-span-2">
         {issue.assignee_ids.length > 0 ? (
           <AvatarGroup>
             {issue.assignee_ids?.map((assigneeId) => {
@@ -282,7 +387,9 @@ export const CreatedCompletedIssueListItem: React.FC<IssueListItemProps> = obser
 
               if (!userDetails) return null;
 
-              return <Avatar key={assigneeId} src={userDetails.avatar} name={userDetails.display_name} />;
+              return (
+                <Avatar key={assigneeId} src={getFileURL(userDetails.avatar_url)} name={userDetails.display_name} />
+              );
             })}
           </AvatarGroup>
         ) : (

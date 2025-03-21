@@ -6,17 +6,22 @@ import isEmpty from "lodash/isEmpty";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // types
+import {
+  EIssueFilterType,
+  EIssuesStoreType,
+  EViewAccess,
+  EUserPermissions,
+  EUserPermissionsLevel,
+} from "@plane/constants";
 import { IIssueFilterOptions } from "@plane/types";
 // components
+import { Header, EHeaderVariant } from "@plane/ui";
 import { AppliedFiltersList } from "@/components/issues";
 import { CreateUpdateProjectViewModal } from "@/components/views";
 import { UpdateViewComponent } from "@/components/views/update-view-component";
 // constants
-import { EIssueFilterType, EIssuesStoreType } from "@/constants/issue";
-import { EViewAccess } from "@/constants/views";
-import { EUserWorkspaceRoles } from "@/constants/workspace";
 // hooks
-import { useIssues, useLabel, useProjectState, useProjectView, useUser } from "@/hooks/store";
+import { useIssues, useLabel, useProjectState, useProjectView, useUser, useUserPermissions } from "@/hooks/store";
 import { getAreFiltersEqual } from "../../../utils";
 
 export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
@@ -29,10 +34,8 @@ export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
   const { projectLabels } = useLabel();
   const { projectStates } = useProjectState();
   const { viewMap, updateView } = useProjectView();
-  const {
-    data,
-    membership: { currentWorkspaceRole },
-  } = useUser();
+  const { data } = useUser();
+  const { allowPermissions } = useUserPermissions();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   // derived values
@@ -91,7 +94,8 @@ export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
     );
   };
 
-  const areFiltersEqual = getAreFiltersEqual(appliedFilters, issueFilters, viewDetails);
+  // add a placeholder object instead of appliedFilters if it is undefined
+  const areFiltersEqual = getAreFiltersEqual(appliedFilters ?? {}, issueFilters, viewDetails);
   const viewFilters = {
     filters: cloneDeep(appliedFilters ?? {}),
     display_filters: cloneDeep(issueFilters?.displayFilters),
@@ -106,13 +110,16 @@ export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
     updateView(workspaceSlug.toString(), projectId.toString(), viewId.toString(), viewFilters);
   };
 
-  const isAuthorizedUser = !!currentWorkspaceRole && currentWorkspaceRole >= EUserWorkspaceRoles.MEMBER;
+  const isAuthorizedUser = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.WORKSPACE
+  );
 
   const isLocked = !!viewDetails?.is_locked;
   const isOwner = viewDetails?.owned_by === data?.id;
 
   return (
-    <div className="flex justify-between gap-4 p-4">
+    <Header variant={EHeaderVariant.TERNARY}>
       <CreateUpdateProjectViewModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -126,7 +133,7 @@ export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
           ...viewFilters,
         }}
       />
-      <div>
+      <Header.LeftItem className="w-[70%]">
         <AppliedFiltersList
           appliedFilters={appliedFilters ?? {}}
           handleClearAllFilters={handleClearAllFilters}
@@ -135,15 +142,17 @@ export const ProjectViewAppliedFiltersRoot: React.FC = observer(() => {
           states={projectStates}
           disableEditing={isLocked}
         />
-      </div>
-      <UpdateViewComponent
-        isLocked={isLocked}
-        areFiltersEqual={!!areFiltersEqual}
-        isOwner={isOwner}
-        isAuthorizedUser={isAuthorizedUser}
-        setIsModalOpen={setIsModalOpen}
-        handleUpdateView={handleUpdateView}
-      />
-    </div>
+      </Header.LeftItem>
+      <Header.RightItem>
+        <UpdateViewComponent
+          isLocked={isLocked}
+          areFiltersEqual={!!areFiltersEqual}
+          isOwner={isOwner}
+          isAuthorizedUser={isAuthorizedUser}
+          setIsModalOpen={setIsModalOpen}
+          handleUpdateView={handleUpdateView}
+        />
+      </Header.RightItem>
+    </Header>
   );
 });

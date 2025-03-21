@@ -1,10 +1,11 @@
+import { Editor } from "@tiptap/react";
 import {
   BoldIcon,
   Heading1,
   CheckSquare,
   Heading2,
   Heading3,
-  QuoteIcon,
+  TextQuote,
   ImageIcon,
   TableIcon,
   ListIcon,
@@ -18,14 +19,18 @@ import {
   Heading6,
   CaseSensitive,
   LucideIcon,
+  MinusSquare,
+  Palette,
+  AlignCenter,
 } from "lucide-react";
-import { Selection } from "@tiptap/pm/state";
-import { Editor } from "@tiptap/react";
 // helpers
 import {
-  insertImageCommand,
+  insertHorizontalRule,
+  insertImage,
   insertTableCommand,
   setText,
+  setTextAlign,
+  toggleBackgroundColor,
   toggleBlockquote,
   toggleBold,
   toggleBulletList,
@@ -40,185 +45,212 @@ import {
   toggleOrderedList,
   toggleStrike,
   toggleTaskList,
+  toggleTextColor,
   toggleUnderline,
 } from "@/helpers/editor-commands";
 // types
-import { UploadImage } from "@/types";
+import { TCommandWithProps, TEditorCommands } from "@/types";
 
-export interface EditorMenuItem {
-  key: string;
+type isActiveFunction<T extends TEditorCommands> = (params?: TCommandWithProps<T>) => boolean;
+type commandFunction<T extends TEditorCommands> = (params?: TCommandWithProps<T>) => void;
+
+export type EditorMenuItem<T extends TEditorCommands> = {
+  key: T;
   name: string;
-  isActive: () => boolean;
-  command: () => void;
+  command: commandFunction<T>;
   icon: LucideIcon;
-}
+  isActive: isActiveFunction<T>;
+};
 
-export const TextItem = (editor: Editor) =>
-  ({
-    key: "text",
-    name: "Text",
-    isActive: () => editor.isActive("paragraph"),
-    command: () => setText(editor),
-    icon: CaseSensitive,
-  }) as const satisfies EditorMenuItem;
+export const TextItem = (editor: Editor): EditorMenuItem<"text"> => ({
+  key: "text",
+  name: "Text",
+  isActive: () => editor.isActive("paragraph"),
+  command: () => setText(editor),
+  icon: CaseSensitive,
+});
 
-export const HeadingOneItem = (editor: Editor) =>
-  ({
-    key: "h1",
-    name: "Heading 1",
-    isActive: () => editor.isActive("heading", { level: 1 }),
-    command: () => toggleHeadingOne(editor),
-    icon: Heading1,
-  }) as const satisfies EditorMenuItem;
+export const HeadingOneItem = (editor: Editor): EditorMenuItem<"h1"> => ({
+  key: "h1",
+  name: "Heading 1",
+  isActive: () => editor.isActive("heading", { level: 1 }),
+  command: () => toggleHeadingOne(editor),
+  icon: Heading1,
+});
 
-export const HeadingTwoItem = (editor: Editor) =>
-  ({
-    key: "h2",
-    name: "Heading 2",
-    isActive: () => editor.isActive("heading", { level: 2 }),
-    command: () => toggleHeadingTwo(editor),
-    icon: Heading2,
-  }) as const satisfies EditorMenuItem;
+export const HeadingTwoItem = (editor: Editor): EditorMenuItem<"h2"> => ({
+  key: "h2",
+  name: "Heading 2",
+  isActive: () => editor.isActive("heading", { level: 2 }),
+  command: () => toggleHeadingTwo(editor),
+  icon: Heading2,
+});
 
-export const HeadingThreeItem = (editor: Editor) =>
-  ({
-    key: "h3",
-    name: "Heading 3",
-    isActive: () => editor.isActive("heading", { level: 3 }),
-    command: () => toggleHeadingThree(editor),
-    icon: Heading3,
-  }) as const satisfies EditorMenuItem;
+export const HeadingThreeItem = (editor: Editor): EditorMenuItem<"h3"> => ({
+  key: "h3",
+  name: "Heading 3",
+  isActive: () => editor.isActive("heading", { level: 3 }),
+  command: () => toggleHeadingThree(editor),
+  icon: Heading3,
+});
 
-export const HeadingFourItem = (editor: Editor) =>
-  ({
-    key: "h4",
-    name: "Heading 4",
-    isActive: () => editor.isActive("heading", { level: 4 }),
-    command: () => toggleHeadingFour(editor),
-    icon: Heading4,
-  }) as const satisfies EditorMenuItem;
+export const HeadingFourItem = (editor: Editor): EditorMenuItem<"h4"> => ({
+  key: "h4",
+  name: "Heading 4",
+  isActive: () => editor.isActive("heading", { level: 4 }),
+  command: () => toggleHeadingFour(editor),
+  icon: Heading4,
+});
 
-export const HeadingFiveItem = (editor: Editor) =>
-  ({
-    key: "h5",
-    name: "Heading 5",
-    isActive: () => editor.isActive("heading", { level: 5 }),
-    command: () => toggleHeadingFive(editor),
-    icon: Heading5,
-  }) as const satisfies EditorMenuItem;
+export const HeadingFiveItem = (editor: Editor): EditorMenuItem<"h5"> => ({
+  key: "h5",
+  name: "Heading 5",
+  isActive: () => editor.isActive("heading", { level: 5 }),
+  command: () => toggleHeadingFive(editor),
+  icon: Heading5,
+});
 
-export const HeadingSixItem = (editor: Editor) =>
-  ({
-    key: "h6",
-    name: "Heading 6",
-    isActive: () => editor.isActive("heading", { level: 6 }),
-    command: () => toggleHeadingSix(editor),
-    icon: Heading6,
-  }) as const satisfies EditorMenuItem;
+export const HeadingSixItem = (editor: Editor): EditorMenuItem<"h6"> => ({
+  key: "h6",
+  name: "Heading 6",
+  isActive: () => editor.isActive("heading", { level: 6 }),
+  command: () => toggleHeadingSix(editor),
+  icon: Heading6,
+});
 
-export const BoldItem = (editor: Editor) =>
-  ({
-    key: "bold",
-    name: "Bold",
-    isActive: () => editor?.isActive("bold"),
-    command: () => toggleBold(editor),
-    icon: BoldIcon,
-  }) as const satisfies EditorMenuItem;
+export const BoldItem = (editor: Editor): EditorMenuItem<"bold"> => ({
+  key: "bold",
+  name: "Bold",
+  isActive: () => editor?.isActive("bold"),
+  command: () => toggleBold(editor),
+  icon: BoldIcon,
+});
 
-export const ItalicItem = (editor: Editor) =>
-  ({
-    key: "italic",
-    name: "Italic",
-    isActive: () => editor?.isActive("italic"),
-    command: () => toggleItalic(editor),
-    icon: ItalicIcon,
-  }) as const satisfies EditorMenuItem;
+export const ItalicItem = (editor: Editor): EditorMenuItem<"italic"> => ({
+  key: "italic",
+  name: "Italic",
+  isActive: () => editor?.isActive("italic"),
+  command: () => toggleItalic(editor),
+  icon: ItalicIcon,
+});
 
-export const UnderLineItem = (editor: Editor) =>
-  ({
-    key: "underline",
-    name: "Underline",
-    isActive: () => editor?.isActive("underline"),
-    command: () => toggleUnderline(editor),
-    icon: UnderlineIcon,
-  }) as const satisfies EditorMenuItem;
+export const UnderLineItem = (editor: Editor): EditorMenuItem<"underline"> => ({
+  key: "underline",
+  name: "Underline",
+  isActive: () => editor?.isActive("underline"),
+  command: () => toggleUnderline(editor),
+  icon: UnderlineIcon,
+});
 
-export const StrikeThroughItem = (editor: Editor) =>
-  ({
-    key: "strikethrough",
-    name: "Strikethrough",
-    isActive: () => editor?.isActive("strike"),
-    command: () => toggleStrike(editor),
-    icon: StrikethroughIcon,
-  }) as const satisfies EditorMenuItem;
+export const StrikeThroughItem = (editor: Editor): EditorMenuItem<"strike"> => ({
+  key: "strike",
+  name: "Strikethrough",
+  isActive: () => editor?.isActive("strike"),
+  command: () => toggleStrike(editor),
+  icon: StrikethroughIcon,
+});
 
-export const BulletListItem = (editor: Editor) =>
-  ({
-    key: "bulleted-list",
-    name: "Bulleted list",
-    isActive: () => editor?.isActive("bulletList"),
-    command: () => toggleBulletList(editor),
-    icon: ListIcon,
-  }) as const satisfies EditorMenuItem;
+export const BulletListItem = (editor: Editor): EditorMenuItem<"bulleted-list"> => ({
+  key: "bulleted-list",
+  name: "Bulleted list",
+  isActive: () => editor?.isActive("bulletList"),
+  command: () => toggleBulletList(editor),
+  icon: ListIcon,
+});
 
-export const NumberedListItem = (editor: Editor) =>
-  ({
-    key: "numbered-list",
-    name: "Numbered list",
-    isActive: () => editor?.isActive("orderedList"),
-    command: () => toggleOrderedList(editor),
-    icon: ListOrderedIcon,
-  }) as const satisfies EditorMenuItem;
+export const NumberedListItem = (editor: Editor): EditorMenuItem<"numbered-list"> => ({
+  key: "numbered-list",
+  name: "Numbered list",
+  isActive: () => editor?.isActive("orderedList"),
+  command: () => toggleOrderedList(editor),
+  icon: ListOrderedIcon,
+});
 
-export const TodoListItem = (editor: Editor) =>
-  ({
-    key: "to-do-list",
-    name: "To-do list",
-    isActive: () => editor.isActive("taskItem"),
-    command: () => toggleTaskList(editor),
-    icon: CheckSquare,
-  }) as const satisfies EditorMenuItem;
+export const TodoListItem = (editor: Editor): EditorMenuItem<"to-do-list"> => ({
+  key: "to-do-list",
+  name: "To-do list",
+  isActive: () => editor.isActive("taskItem"),
+  command: () => toggleTaskList(editor),
+  icon: CheckSquare,
+});
 
-export const QuoteItem = (editor: Editor) =>
-  ({
-    key: "quote",
-    name: "Quote",
-    isActive: () => editor?.isActive("blockquote"),
-    command: () => toggleBlockquote(editor),
-    icon: QuoteIcon,
-  }) as const satisfies EditorMenuItem;
+export const QuoteItem = (editor: Editor): EditorMenuItem<"quote"> => ({
+  key: "quote",
+  name: "Quote",
+  isActive: () => editor?.isActive("blockquote"),
+  command: () => toggleBlockquote(editor),
+  icon: TextQuote,
+});
 
-export const CodeItem = (editor: Editor) =>
-  ({
-    key: "code",
-    name: "Code",
-    isActive: () => editor?.isActive("code") || editor?.isActive("codeBlock"),
-    command: () => toggleCodeBlock(editor),
-    icon: CodeIcon,
-  }) as const satisfies EditorMenuItem;
+export const CodeItem = (editor: Editor): EditorMenuItem<"code"> => ({
+  key: "code",
+  name: "Code",
+  isActive: () => editor?.isActive("code") || editor?.isActive("codeBlock"),
+  command: () => toggleCodeBlock(editor),
+  icon: CodeIcon,
+});
 
-export const TableItem = (editor: Editor) =>
-  ({
-    key: "table",
-    name: "Table",
-    isActive: () => editor?.isActive("table"),
-    command: () => insertTableCommand(editor),
-    icon: TableIcon,
-  }) as const satisfies EditorMenuItem;
+export const TableItem = (editor: Editor): EditorMenuItem<"table"> => ({
+  key: "table",
+  name: "Table",
+  isActive: () => editor?.isActive("table"),
+  command: () => insertTableCommand(editor),
+  icon: TableIcon,
+});
 
-export const ImageItem = (editor: Editor, uploadFile: UploadImage) =>
+export const ImageItem = (editor: Editor): EditorMenuItem<"image"> => ({
+  key: "image",
+  name: "Image",
+  isActive: () => editor?.isActive("image") || editor?.isActive("imageComponent"),
+  command: () => insertImage({ editor, event: "insert", pos: editor.state.selection.from }),
+  icon: ImageIcon,
+});
+
+export const HorizontalRuleItem = (editor: Editor) =>
   ({
-    key: "image",
-    name: "Image",
-    isActive: () => editor?.isActive("image"),
-    command: (savedSelection: Selection | null) => insertImageCommand(editor, uploadFile, savedSelection),
-    icon: ImageIcon,
+    key: "divider",
+    name: "Divider",
+    isActive: () => editor?.isActive("horizontalRule"),
+    command: () => insertHorizontalRule(editor),
+    icon: MinusSquare,
   }) as const;
 
-export function getEditorMenuItems(editor: Editor | null, uploadFile: UploadImage) {
-  if (!editor) {
-    return [];
-  }
+export const TextColorItem = (editor: Editor): EditorMenuItem<"text-color"> => ({
+  key: "text-color",
+  name: "Color",
+  isActive: (props) => editor.isActive("customColor", { color: props?.color }),
+  command: (props) => {
+    if (!props) return;
+    toggleTextColor(props.color, editor);
+  },
+  icon: Palette,
+});
+
+export const BackgroundColorItem = (editor: Editor): EditorMenuItem<"background-color"> => ({
+  key: "background-color",
+  name: "Background color",
+  isActive: (props) => editor.isActive("customColor", { backgroundColor: props?.color }),
+  command: (props) => {
+    if (!props) return;
+    toggleBackgroundColor(props.color, editor);
+  },
+  icon: Palette,
+});
+
+export const TextAlignItem = (editor: Editor): EditorMenuItem<"text-align"> => ({
+  key: "text-align",
+  name: "Text align",
+  isActive: (props) => editor.isActive({ textAlign: props?.alignment }),
+  command: (props) => {
+    if (!props) return;
+    setTextAlign(props.alignment, editor);
+  },
+  icon: AlignCenter,
+});
+
+export const getEditorMenuItems = (editor: Editor | null): EditorMenuItem<TEditorCommands>[] => {
+  if (!editor) return [];
+
   return [
     TextItem(editor),
     HeadingOneItem(editor),
@@ -237,9 +269,10 @@ export function getEditorMenuItems(editor: Editor | null, uploadFile: UploadImag
     NumberedListItem(editor),
     QuoteItem(editor),
     TableItem(editor),
-    ImageItem(editor, uploadFile),
+    ImageItem(editor),
+    HorizontalRuleItem(editor),
+    TextColorItem(editor),
+    BackgroundColorItem(editor),
+    TextAlignItem(editor),
   ];
-}
-
-export type EditorMenuItemNames =
-  ReturnType<typeof getEditorMenuItems> extends (infer U)[] ? (U extends { key: infer N } ? N : never) : never;
+};

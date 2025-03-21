@@ -1,33 +1,39 @@
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+// types
+import { EIssueFilterType, EIssuesStoreType, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { IIssueFilterOptions } from "@plane/types";
-// hooks
+// ui
+import { Header, EHeaderVariant } from "@plane/ui";
 // components
 import { AppliedFiltersList, SaveFilterView } from "@/components/issues";
 // constants
-import { EIssueFilterType, EIssuesStoreType } from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
-import { useLabel, useProjectState, useUser } from "@/hooks/store";
+// hooks
+import { useLabel, useProjectState, useUserPermissions } from "@/hooks/store";
 import { useIssues } from "@/hooks/store/use-issues";
-// types
+// plane web constants
 
-export const ProjectAppliedFiltersRoot: React.FC = observer(() => {
+type TProjectAppliedFiltersRootProps = {
+  storeType?: EIssuesStoreType.PROJECT | EIssuesStoreType.EPIC;
+};
+
+export const ProjectAppliedFiltersRoot: React.FC<TProjectAppliedFiltersRootProps> = observer((props) => {
+  const { storeType = EIssuesStoreType.PROJECT } = props;
   // router
-  const { workspaceSlug, projectId } = useParams() as {
-    workspaceSlug: string;
-    projectId: string;
-  };
+  const { workspaceSlug, projectId } = useParams();
   // store hooks
   const { projectLabels } = useLabel();
   const {
     issuesFilter: { issueFilters, updateFilters },
-  } = useIssues(EIssuesStoreType.PROJECT);
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  } = useIssues(storeType);
+  const { allowPermissions } = useUserPermissions();
+
   const { projectStates } = useProjectState();
   // derived values
-  const isEditingAllowed = !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER;
+  const isEditingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
   const userFilters = issueFilters?.filters;
   // filters whose value not null or empty array
   const appliedFilters: IIssueFilterOptions = {};
@@ -67,25 +73,29 @@ export const ProjectAppliedFiltersRoot: React.FC = observer(() => {
   if (Object.keys(appliedFilters).length === 0) return null;
 
   return (
-    <div className="flex justify-between p-4 gap-2.5">
-      <AppliedFiltersList
-        appliedFilters={appliedFilters}
-        handleClearAllFilters={handleClearAllFilters}
-        handleRemoveFilter={handleRemoveFilter}
-        labels={projectLabels ?? []}
-        states={projectStates}
-      />
-      {isEditingAllowed && (
-        <SaveFilterView
-          workspaceSlug={workspaceSlug}
-          projectId={projectId}
-          filterParams={{
-            filters: appliedFilters,
-            display_filters: issueFilters?.displayFilters,
-            display_properties: issueFilters?.displayProperties,
-          }}
+    <Header variant={EHeaderVariant.TERNARY}>
+      <Header.LeftItem>
+        <AppliedFiltersList
+          appliedFilters={appliedFilters}
+          handleClearAllFilters={handleClearAllFilters}
+          handleRemoveFilter={handleRemoveFilter}
+          labels={projectLabels ?? []}
+          states={projectStates}
         />
-      )}
-    </div>
+      </Header.LeftItem>
+      <Header.RightItem>
+        {isEditingAllowed && (
+          <SaveFilterView
+            workspaceSlug={workspaceSlug?.toString()}
+            projectId={projectId?.toString()}
+            filterParams={{
+              filters: appliedFilters,
+              display_filters: issueFilters?.displayFilters,
+              display_properties: issueFilters?.displayProperties,
+            }}
+          />
+        )}
+      </Header.RightItem>
+    </Header>
   );
 });

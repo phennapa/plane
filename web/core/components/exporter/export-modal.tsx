@@ -1,19 +1,20 @@
 "use client";
 
 import React, { useState } from "react";
+import intersection from "lodash/intersection";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Dialog, Transition } from "@headlessui/react";
 // types
+import { useTranslation } from "@plane/i18n";
 import { IUser, IImporterService } from "@plane/types";
 // ui
 import { Button, CustomSearchSelect, TOAST_TYPE, setToast } from "@plane/ui";
 // hooks
-import { useProject } from "@/hooks/store";
+import { useProject, useUser } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 // services
 import { ProjectExportService } from "@/services/project";
-
 type Props = {
   isOpen: boolean;
   handleClose: () => void;
@@ -35,8 +36,14 @@ export const Exporter: React.FC<Props> = observer((props) => {
   const { workspaceSlug } = useParams();
   // store hooks
   const { workspaceProjectIds, getProjectById } = useProject();
+  const { projectsWithCreatePermissions } = useUser();
+  const { t } = useTranslation();
 
-  const options = workspaceProjectIds?.map((projectId) => {
+  const wsProjectIdsWithCreatePermisisons = projectsWithCreatePermissions
+    ? intersection(workspaceProjectIds, Object.keys(projectsWithCreatePermissions))
+    : [];
+
+  const options = wsProjectIdsWithCreatePermisisons?.map((projectId) => {
     const projectDetails = getProjectById(projectId);
 
     return {
@@ -44,8 +51,8 @@ export const Exporter: React.FC<Props> = observer((props) => {
       query: `${projectDetails?.name} ${projectDetails?.identifier}`,
       content: (
         <div className="flex items-center gap-2">
-          <span className="text-[0.65rem] text-custom-text-200">{projectDetails?.identifier}</span>
-          {projectDetails?.name}
+          <span className="text-[0.65rem] text-custom-text-200 flex-shrink-0">{projectDetails?.identifier}</span>
+          <span className="truncate">{projectDetails?.name}</span>
         </div>
       ),
     };
@@ -72,18 +79,18 @@ export const Exporter: React.FC<Props> = observer((props) => {
           setExportLoading(false);
           setToast({
             type: TOAST_TYPE.SUCCESS,
-            title: "Export Successful",
-            message: `You will be able to download the exported ${
-              provider === "csv" ? "CSV" : provider === "xlsx" ? "Excel" : provider === "json" ? "JSON" : ""
-            } from the previous export.`,
+            title: t("workspace_settings.settings.exports.modal.toasts.success.title"),
+            message: t("workspace_settings.settings.exports.modal.toasts.success.message", {
+              entity: provider === "csv" ? "CSV" : provider === "xlsx" ? "Excel" : provider === "json" ? "JSON" : "",
+            }),
           });
         })
         .catch(() => {
           setExportLoading(false);
           setToast({
             type: TOAST_TYPE.ERROR,
-            title: "Error!",
-            message: "Export was unsuccessful. Please try again.",
+            title: t("error"),
+            message: t("workspace_settings.settings.exports.modal.toasts.error.message"),
           });
         });
     }
@@ -111,7 +118,7 @@ export const Exporter: React.FC<Props> = observer((props) => {
         </Transition.Child>
 
         <div className="fixed inset-0 z-20 overflow-y-auto">
-          <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          <div className="flex min-h-full items-center justify-center p-4 text-center  sm:p-0">
             <Transition.Child
               as={React.Fragment}
               enter="ease-out duration-300"
@@ -121,12 +128,12 @@ export const Exporter: React.FC<Props> = observer((props) => {
               leaveFrom="opacity-100 translate-y-0 sm:scale-100"
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
-              <Dialog.Panel className="relative transform rounded-lg bg-custom-background-100 text-left shadow-custom-shadow-md transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+              <Dialog.Panel className="relative transform rounded-lg bg-custom-background-100 text-left shadow-custom-shadow-md transition-all sm:my-8 sm:w-full sm:max-w-xl">
                 <div className="flex flex-col gap-6 gap-y-4 p-6">
                   <div className="flex w-full items-center justify-start gap-6">
                     <span className="flex items-center justify-start">
                       <h3 className="text-xl font-medium 2xl:text-2xl">
-                        Export to{" "}
+                        {t("workspace_settings.settings.exports.modal.title")}{" "}
                         {provider === "csv" ? "CSV" : provider === "xlsx" ? "Excel" : provider === "json" ? "JSON" : ""}
                       </h3>
                     </span>
@@ -150,7 +157,8 @@ export const Exporter: React.FC<Props> = observer((props) => {
                       }
                       onOpen={() => setIsSelectOpen(true)}
                       onClose={() => setIsSelectOpen(false)}
-                      optionsClassName="min-w-full"
+                      optionsClassName="max-w-48 sm:max-w-[532px]"
+                      placement="bottom-end"
                       multiple
                     />
                   </div>
@@ -159,11 +167,13 @@ export const Exporter: React.FC<Props> = observer((props) => {
                     className="flex max-w-min cursor-pointer items-center gap-2"
                   >
                     <input type="checkbox" checked={multiple} onChange={() => setMultiple(!multiple)} />
-                    <div className="whitespace-nowrap text-sm">Export the data into separate files</div>
+                    <div className="whitespace-nowrap text-sm">
+                      {t("workspace_settings.settings.exports.export_separate_files")}
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="neutral-primary" size="sm" onClick={handleClose}>
-                      Cancel
+                      {t("cancel")}
                     </Button>
                     <Button
                       variant="primary"
@@ -172,7 +182,9 @@ export const Exporter: React.FC<Props> = observer((props) => {
                       disabled={exportLoading}
                       loading={exportLoading}
                     >
-                      {exportLoading ? "Exporting..." : "Export"}
+                      {exportLoading
+                        ? `${t("workspace_settings.settings.exports.exporting")}...`
+                        : t("workspace_settings.settings.exports.title")}
                     </Button>
                   </div>
                 </div>

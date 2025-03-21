@@ -4,6 +4,7 @@ import { FC } from "react";
 import { observer } from "mobx-react";
 import Image from "next/image";
 import { Tab } from "@headlessui/react";
+import { useTranslation } from "@plane/i18n";
 import {
   IIssueFilterOptions,
   IIssueFilters,
@@ -17,6 +18,7 @@ import { Avatar, StateGroupIcon } from "@plane/ui";
 import { SingleProgressStats } from "@/components/core";
 // helpers
 import { cn } from "@/helpers/common.helper";
+import { getFileURL } from "@/helpers/file.helper";
 // hooks
 import { useProjectState } from "@/hooks/store";
 import useLocalStorage from "@/hooks/use-local-storage";
@@ -28,7 +30,7 @@ import emptyMembers from "@/public/empty-state/empty_members.svg";
 type TAssigneeData = {
   id: string | undefined;
   title: string | undefined;
-  avatar: string | undefined;
+  avatar_url: string | undefined;
   completed: number;
   total: number;
 }[];
@@ -72,6 +74,7 @@ type TStateStatComponent = {
 
 export const AssigneeStatComponent = observer((props: TAssigneeStatComponent) => {
   const { distribution, isEditable, filters, handleFiltersUpdate } = props;
+  const { t } = useTranslation();
   return (
     <div>
       {distribution && distribution.length > 0 ? (
@@ -82,7 +85,7 @@ export const AssigneeStatComponent = observer((props: TAssigneeStatComponent) =>
                 key={assignee?.id}
                 title={
                   <div className="flex items-center gap-2">
-                    <Avatar name={assignee?.title ?? undefined} src={assignee?.avatar ?? undefined} />
+                    <Avatar name={assignee?.title ?? undefined} src={getFileURL(assignee?.avatar_url ?? "")} />
                     <span>{assignee?.title ?? ""}</span>
                   </div>
                 }
@@ -103,7 +106,7 @@ export const AssigneeStatComponent = observer((props: TAssigneeStatComponent) =>
                     <div className="h-4 w-4 rounded-full border-2 border-custom-border-200 bg-custom-background-80">
                       <img src="/user.png" height="100%" width="100%" className="rounded-full" alt="User" />
                     </div>
-                    <span>No assignee</span>
+                    <span>{t("no_assignee")}</span>
                   </div>
                 }
                 completed={assignee?.completed ?? 0}
@@ -116,7 +119,7 @@ export const AssigneeStatComponent = observer((props: TAssigneeStatComponent) =>
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-custom-background-80">
             <Image src={emptyMembers} className="h-12 w-12" alt="empty members" />
           </div>
-          <h6 className="text-base text-custom-text-300">No assignees yet</h6>
+          <h6 className="text-base text-custom-text-300">{t("no_assignee")}</h6>
         </div>
       )}
     </div>
@@ -125,6 +128,7 @@ export const AssigneeStatComponent = observer((props: TAssigneeStatComponent) =>
 
 export const LabelStatComponent = observer((props: TLabelStatComponent) => {
   const { distribution, isEditable, filters, handleFiltersUpdate } = props;
+  const { t } = useTranslation();
   return (
     <div>
       {distribution && distribution.length > 0 ? (
@@ -134,14 +138,14 @@ export const LabelStatComponent = observer((props: TLabelStatComponent) => {
               <SingleProgressStats
                 key={label.id}
                 title={
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 truncate">
                     <span
-                      className="block h-3 w-3 rounded-full"
+                      className="block h-3 w-3 rounded-full flex-shrink-0"
                       style={{
                         backgroundColor: label.color ?? "transparent",
                       }}
                     />
-                    <span className="text-xs">{label.title ?? "No labels"}</span>
+                    <span className="text-xs text-ellipsis truncate">{label.title ?? t("no_labels_yet")}</span>
                   </div>
                 }
                 completed={label.completed}
@@ -164,7 +168,7 @@ export const LabelStatComponent = observer((props: TLabelStatComponent) => {
                         backgroundColor: label.color ?? "transparent",
                       }}
                     />
-                    <span className="text-xs">{label.title ?? "No labels"}</span>
+                    <span className="text-xs">{label.title ?? t("no_labels_yet")}</span>
                   </div>
                 }
                 completed={label.completed}
@@ -178,7 +182,7 @@ export const LabelStatComponent = observer((props: TLabelStatComponent) => {
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-custom-background-80">
             <Image src={emptyLabel} className="h-12 w-12" alt="empty label" />
           </div>
-          <h6 className="text-base text-custom-text-300">No labels yet</h6>
+          <h6 className="text-base text-custom-text-300">{t("no_labels_yet")}</h6>
         </div>
       )}
     </div>
@@ -220,16 +224,16 @@ export const StateStatComponent = observer((props: TStateStatComponent) => {
 
 const progressStats = [
   {
+    key: "stat-states",
+    i18n_title: "common.states",
+  },
+  {
     key: "stat-assignees",
-    title: "Assignees",
+    i18n_title: "common.assignees",
   },
   {
     key: "stat-labels",
-    title: "Labels",
-  },
-  {
-    key: "stat-states",
-    title: "States",
+    i18n_title: "common.labels",
   },
 ];
 
@@ -266,6 +270,7 @@ export const CycleProgressStats: FC<TCycleProgressStats> = observer((props) => {
     `cycle-analytics-tab-${cycleId}`,
     "stat-assignees"
   );
+  const { t } = useTranslation();
   // derived values
   const currentTabIndex = (tab: string): number => progressStats.findIndex((stat) => stat.key === tab);
 
@@ -277,14 +282,14 @@ export const CycleProgressStats: FC<TCycleProgressStats> = observer((props) => {
       ? (currentDistribution?.assignees || []).map((assignee) => ({
           id: assignee?.assignee_id || undefined,
           title: assignee?.display_name || undefined,
-          avatar: assignee?.avatar || undefined,
+          avatar_url: assignee?.avatar_url || undefined,
           completed: assignee.completed_issues,
           total: assignee.total_issues,
         }))
       : (currentEstimateDistribution?.assignees || []).map((assignee) => ({
           id: assignee?.assignee_id || undefined,
           title: assignee?.display_name || undefined,
-          avatar: assignee?.avatar || undefined,
+          avatar_url: assignee?.avatar_url || undefined,
           completed: assignee.completed_estimates,
           total: assignee.total_estimates,
         }));
@@ -336,11 +341,19 @@ export const CycleProgressStats: FC<TCycleProgressStats> = observer((props) => {
               key={stat.key}
               onClick={() => setCycleTab(stat.key)}
             >
-              {stat.title}
+              {t(stat.i18n_title)}
             </Tab>
           ))}
         </Tab.List>
         <Tab.Panels className="py-3 text-custom-text-200">
+          <Tab.Panel key={"stat-states"}>
+            <StateStatComponent
+              distribution={distributionStateData}
+              totalIssuesCount={totalIssuesCount}
+              isEditable={isEditable}
+              handleFiltersUpdate={handleFiltersUpdate}
+            />
+          </Tab.Panel>
           <Tab.Panel key={"stat-assignees"}>
             <AssigneeStatComponent
               distribution={distributionAssigneeData}
@@ -354,14 +367,6 @@ export const CycleProgressStats: FC<TCycleProgressStats> = observer((props) => {
               distribution={distributionLabelData}
               isEditable={isEditable}
               filters={filters}
-              handleFiltersUpdate={handleFiltersUpdate}
-            />
-          </Tab.Panel>
-          <Tab.Panel key={"stat-states"}>
-            <StateStatComponent
-              distribution={distributionStateData}
-              totalIssuesCount={totalIssuesCount}
-              isEditable={isEditable}
               handleFiltersUpdate={handleFiltersUpdate}
             />
           </Tab.Panel>

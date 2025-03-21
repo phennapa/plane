@@ -1,16 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import useSWR from "swr";;
+// plane imports
+import { ROLE, MEMBER_ACCEPTED } from "@plane/constants";
 // types
 import { IWorkspaceMemberInvitation } from "@plane/types";
 // ui
 import { Button, Checkbox, Spinner } from "@plane/ui";
 // constants
-import { MEMBER_ACCEPTED } from "@/constants/event-tracker";
-import { USER_WORKSPACE_INVITATIONS } from "@/constants/fetch-keys";
-import { ROLE } from "@/constants/workspace";
 // helpers
+import { WorkspaceLogo } from "@/components/workspace/logo";
 import { truncateText } from "@/helpers/string.helper";
 import { getUserRole } from "@/helpers/user.helper";
 // hooks
@@ -19,13 +18,14 @@ import { useEventTracker, useUserSettings, useWorkspace } from "@/hooks/store";
 import { WorkspaceService } from "@/plane-web/services";
 
 type Props = {
+  invitations: IWorkspaceMemberInvitation[];
   handleNextStep: () => Promise<void>;
   handleCurrentViewChange: () => void;
 };
 const workspaceService = new WorkspaceService();
 
 export const Invitations: React.FC<Props> = (props) => {
-  const { handleNextStep, handleCurrentViewChange } = props;
+  const { invitations, handleNextStep, handleCurrentViewChange } = props;
   // states
   const [isJoiningWorkspaces, setIsJoiningWorkspaces] = useState(false);
   const [invitationsRespond, setInvitationsRespond] = useState<string[]>([]);
@@ -33,8 +33,6 @@ export const Invitations: React.FC<Props> = (props) => {
   const { captureEvent } = useEventTracker();
   const { fetchWorkspaces } = useWorkspace();
   const { fetchCurrentUserSettings } = useUserSettings();
-
-  const { data: invitations } = useSWR(USER_WORKSPACE_INVITATIONS, () => workspaceService.userWorkspaceInvitations());
 
   const handleInvitation = (workspace_invitation: IWorkspaceMemberInvitation, action: "accepted" | "withdraw") => {
     if (action === "accepted") {
@@ -97,21 +95,11 @@ export const Invitations: React.FC<Props> = (props) => {
                 onClick={() => handleInvitation(invitation, isSelected ? "withdraw" : "accepted")}
               >
                 <div className="flex-shrink-0">
-                  <div className="grid h-9 w-9 place-items-center rounded">
-                    {invitedWorkspace?.logo && invitedWorkspace.logo !== "" ? (
-                      <img
-                        src={invitedWorkspace.logo}
-                        height="100%"
-                        width="100%"
-                        className="rounded"
-                        alt={invitedWorkspace.name}
-                      />
-                    ) : (
-                      <span className="grid h-9 w-9 place-items-center rounded bg-gray-700 px-3 py-1.5 uppercase text-white">
-                        {invitedWorkspace?.name[0]}
-                      </span>
-                    )}
-                  </div>
+                  <WorkspaceLogo
+                    logo={invitedWorkspace?.logo_url}
+                    name={invitedWorkspace?.name}
+                    classNames="size-9 flex-shrink-0"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">{truncateText(invitedWorkspace?.name, 30)}</div>

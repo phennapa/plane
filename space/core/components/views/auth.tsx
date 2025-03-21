@@ -4,15 +4,15 @@ import { observer } from "mobx-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "next-themes";
+import { SPACE_BASE_PATH } from "@plane/constants";
 // components
 import { AuthRoot } from "@/components/account";
-// helpers
-import { SPACE_BASE_PATH } from "@/helpers/common.helper";
+import { PoweredBy } from "@/components/common";
 // images
 import PlaneBackgroundPatternDark from "@/public/auth/background-pattern-dark.svg";
 import PlaneBackgroundPattern from "@/public/auth/background-pattern.svg";
-import BlackHorizontalLogo from "public/plane-logos/black-horizontal-with-blue-logo.png";
-import WhiteHorizontalLogo from "public/plane-logos/white-horizontal-with-blue-logo.png";
+import BlackHorizontalLogo from "@/public/plane-logos/black-horizontal-with-blue-logo.png";
+import WhiteHorizontalLogo from "@/public/plane-logos/white-horizontal-with-blue-logo.png";
 
 export const AuthView = observer(() => {
   // hooks
@@ -30,7 +30,7 @@ export const AuthView = observer(() => {
         />
       </div>
       <div className="relative z-10 w-screen h-screen overflow-hidden overflow-y-auto flex flex-col">
-        <div className="container mx-auto px-10 lg:px-0 flex-shrink-0 relative flex items-center justify-between pb-4 transition-all">
+        <div className="container min-w-full px-10 lg:px-20 xl:px-36 flex-shrink-0 relative flex items-center justify-between pb-4 transition-all">
           <div className="flex items-center gap-x-2 py-10">
             <Link href={`${SPACE_BASE_PATH}/`} className="h-[30px] w-[133px]">
               <Image src={logo} alt="Plane logo" />
@@ -41,6 +41,7 @@ export const AuthView = observer(() => {
           <AuthRoot />
         </div>
       </div>
+      <PoweredBy />
     </div>
   );
 });

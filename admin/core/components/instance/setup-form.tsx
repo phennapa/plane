@@ -4,15 +4,13 @@ import { FC, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 // icons
 import { Eye, EyeOff } from "lucide-react";
-// ui
+// plane internal packages
+import { API_BASE_URL, E_PASSWORD_STRENGTH } from "@plane/constants";
+import { AuthService } from "@plane/services";
 import { Button, Checkbox, Input, Spinner } from "@plane/ui";
+import { getPasswordStrength } from "@plane/utils";
 // components
 import { Banner, PasswordStrengthMeter } from "@/components/common";
-// helpers
-import { API_BASE_URL } from "@/helpers/common.helper";
-import { E_PASSWORD_STRENGTH, getPasswordStrength } from "@/helpers/password.helper";
-// services
-import { AuthService } from "@/services/auth.service";
 
 // service initialization
 const authService = new AuthService();
@@ -174,6 +172,7 @@ export const InstanceSetupForm: FC = (props) => {
                 placeholder="Wilber"
                 value={formData.first_name}
                 onChange={(e) => handleFormChange("first_name", e.target.value)}
+                autoComplete="on"
                 autoFocus
               />
             </div>
@@ -190,6 +189,7 @@ export const InstanceSetupForm: FC = (props) => {
                 placeholder="Wright"
                 value={formData.last_name}
                 onChange={(e) => handleFormChange("last_name", e.target.value)}
+                autoComplete="on"
               />
             </div>
           </div>
@@ -208,6 +208,7 @@ export const InstanceSetupForm: FC = (props) => {
               value={formData.email}
               onChange={(e) => handleFormChange("email", e.target.value)}
               hasError={errorData.type && errorData.type === EErrorCodes.INVALID_EMAIL ? true : false}
+              autoComplete="on"
             />
             {errorData.type && errorData.type === EErrorCodes.INVALID_EMAIL && errorData.message && (
               <p className="px-1 text-xs text-red-500">{errorData.message}</p>
@@ -247,6 +248,7 @@ export const InstanceSetupForm: FC = (props) => {
                 hasError={errorData.type && errorData.type === EErrorCodes.INVALID_PASSWORD ? true : false}
                 onFocus={() => setIsPasswordInputFocused(true)}
                 onBlur={() => setIsPasswordInputFocused(false)}
+                autoComplete="on"
               />
               {showPassword.password ? (
                 <button
@@ -334,7 +336,7 @@ export const InstanceSetupForm: FC = (props) => {
             </label>
             <a
               tabIndex={-1}
-              href="https://docs.plane.so/telemetry"
+              href="https://developers.plane.so/self-hosting/telemetry"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-medium text-blue-500 hover:text-blue-600"

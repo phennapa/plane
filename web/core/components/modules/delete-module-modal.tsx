@@ -4,11 +4,12 @@ import React, { useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // types
+import { PROJECT_ERROR_MESSAGES, MODULE_DELETED } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import type { IModule } from "@plane/types";
 // ui
 import { AlertModalCore, TOAST_TYPE, setToast } from "@plane/ui";
 // constants
-import { MODULE_DELETED } from "@/constants/event-tracker";
 // hooks
 import { useEventTracker, useModule } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
@@ -29,6 +30,7 @@ export const DeleteModuleModal: React.FC<Props> = observer((props) => {
   // store hooks
   const { captureModuleEvent } = useEventTracker();
   const { deleteModule } = useModule();
+  const { t } = useTranslation();
 
   const handleClose = () => {
     onClose();
@@ -54,20 +56,22 @@ export const DeleteModuleModal: React.FC<Props> = observer((props) => {
           payload: { ...data, state: "SUCCESS" },
         });
       })
-      .catch(() => {
+      .catch((errors) => {
+        const isPermissionError = errors?.error === "You don't have the required permissions.";
+        const currentError = isPermissionError
+          ? PROJECT_ERROR_MESSAGES.permissionError
+          : PROJECT_ERROR_MESSAGES.moduleDeleteError;
         setToast({
+          title: t(currentError.i18n_title),
           type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: "Module could not be deleted. Please try again.",
+          message: currentError.i18n_message && t(currentError.i18n_message),
         });
         captureModuleEvent({
           eventName: MODULE_DELETED,
           payload: { ...data, state: "FAILED" },
         });
       })
-      .finally(() => {
-        setIsDeleteLoading(false);
-      });
+      .finally(() => handleClose());
   };
 
   return (
@@ -76,7 +80,7 @@ export const DeleteModuleModal: React.FC<Props> = observer((props) => {
       handleSubmit={handleDeletion}
       isSubmitting={isDeleteLoading}
       isOpen={isOpen}
-      title="Delete Module"
+      title="Delete module"
       content={
         <>
           Are you sure you want to delete module-{" "}

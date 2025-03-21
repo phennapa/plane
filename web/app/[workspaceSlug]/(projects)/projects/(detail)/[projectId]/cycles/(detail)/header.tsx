@@ -6,22 +6,25 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 // icons
 import { ArrowRight, PanelRight } from "lucide-react";
+// plane constants
+import {
+  EIssueLayoutTypes,
+  EIssueFilterType,
+  EIssuesStoreType,
+  ISSUE_DISPLAY_FILTERS_BY_PAGE,
+  EUserPermissions,
+  EUserPermissionsLevel,
+} from "@plane/constants";
+// i18n
+import { useTranslation } from "@plane/i18n";
 // types
 import { IIssueDisplayFilterOptions, IIssueDisplayProperties, IIssueFilterOptions } from "@plane/types";
 // ui
-import { Breadcrumbs, Button, ContrastIcon, CustomMenu, Tooltip } from "@plane/ui";
+import { Breadcrumbs, Button, ContrastIcon, CustomMenu, Tooltip, Header } from "@plane/ui";
 // components
 import { ProjectAnalyticsModal } from "@/components/analytics";
-import { BreadcrumbLink, Logo } from "@/components/common";
+import { BreadcrumbLink } from "@/components/common";
 import { DisplayFiltersSelection, FiltersDropdown, FilterSelection, LayoutSelection } from "@/components/issues";
-// constants
-import {
-  EIssueFilterType,
-  EIssueLayoutTypes,
-  EIssuesStoreType,
-  ISSUE_DISPLAY_FILTERS_BY_LAYOUT,
-} from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { isIssueFilterActive } from "@/helpers/filter.helper";
@@ -34,13 +37,15 @@ import {
   useMember,
   useProject,
   useProjectState,
-  useUser,
   useIssues,
   useCommandPalette,
+  useUserPermissions,
 } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 import useLocalStorage from "@/hooks/use-local-storage";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// plane web
+import { ProjectBreadcrumb } from "@/plane-web/components/breadcrumbs";
 
 const CycleDropdownOption: React.FC<{ cycleId: string }> = ({ cycleId }) => {
   // router
@@ -73,6 +78,8 @@ export const CycleIssuesHeader: React.FC = observer(() => {
     projectId: string;
     cycleId: string;
   };
+  // i18n
+  const { t } = useTranslation();
   // store hooks
   const {
     issuesFilter: { issueFilters, updateFilters },
@@ -81,9 +88,6 @@ export const CycleIssuesHeader: React.FC = observer(() => {
   const { currentProjectCycleIds, getCycleById } = useCycle();
   const { toggleCreateIssueModal } = useCommandPalette();
   const { setTrackElement } = useEventTracker();
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
   const { currentProjectDetails, loader } = useProject();
   const { projectStates } = useProjectState();
   const { projectLabels } = useLabel();
@@ -91,6 +95,7 @@ export const CycleIssuesHeader: React.FC = observer(() => {
     project: { projectMemberIds },
   } = useMember();
   const { isMobile } = usePlatformOS();
+  const { allowPermissions } = useUserPermissions();
 
   const activeLayout = issueFilters?.displayFilters?.layout;
 
@@ -149,8 +154,10 @@ export const CycleIssuesHeader: React.FC = observer(() => {
   // derived values
   const cycleDetails = cycleId ? getCycleById(cycleId.toString()) : undefined;
   const isCompletedCycle = cycleDetails?.status?.toLocaleLowerCase() === "completed";
-  const canUserCreateIssue =
-    currentProjectRole && [EUserProjectRoles.ADMIN, EUserProjectRoles.MEMBER].includes(currentProjectRole);
+  const canUserCreateIssue = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
 
   const issuesCount = getGroupIssueCount(undefined, undefined, false);
 
@@ -161,26 +168,16 @@ export const CycleIssuesHeader: React.FC = observer(() => {
         onClose={() => setAnalyticsModal(false)}
         cycleDetails={cycleDetails ?? undefined}
       />
-      <div className="relative z-[15] w-full items-center gap-x-2 gap-y-4">
-        <div className="flex justify-between bg-custom-sidebar-background-100 p-4">
+      <Header>
+        <Header.LeftItem>
           <div className="flex items-center gap-2">
-            <Breadcrumbs onBack={router.back} isLoading={loader}>
+            <Breadcrumbs onBack={router.back} isLoading={loader === "init-loader"}>
               <Breadcrumbs.BreadcrumbItem
                 type="text"
                 link={
                   <span>
                     <span className="hidden md:block">
-                      <BreadcrumbLink
-                        label={currentProjectDetails?.name ?? "Project"}
-                        href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/issues`}
-                        icon={
-                          currentProjectDetails && (
-                            <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
-                              <Logo logo={currentProjectDetails?.logo_props} size={16} />
-                            </span>
-                          )
-                        }
-                      />
+                      <ProjectBreadcrumb />
                     </span>
                     <Link
                       href={`/${workspaceSlug}/projects/${currentProjectDetails?.id}/issues`}
@@ -195,7 +192,7 @@ export const CycleIssuesHeader: React.FC = observer(() => {
                 type="text"
                 link={
                   <BreadcrumbLink
-                    label="Cycles"
+                    label={t("common.cycles")}
                     href={`/${workspaceSlug}/projects/${projectId}/cycles`}
                     icon={<ContrastIcon className="h-4 w-4 text-custom-text-300" />}
                   />
@@ -214,7 +211,7 @@ export const CycleIssuesHeader: React.FC = observer(() => {
                             <Tooltip
                               isMobile={isMobile}
                               tooltipContent={`There are ${issuesCount} ${
-                                issuesCount > 1 ? "issues" : "issue"
+                                issuesCount > 1 ? "work items" : "work item"
                               } in this cycle`}
                               position="bottom"
                             >
@@ -235,6 +232,8 @@ export const CycleIssuesHeader: React.FC = observer(() => {
               />
             </Breadcrumbs>
           </div>
+        </Header.LeftItem>
+        <Header.RightItem>
           <div className="hidden items-center gap-2 md:flex ">
             <LayoutSelection
               layouts={[
@@ -248,7 +247,7 @@ export const CycleIssuesHeader: React.FC = observer(() => {
               selectedLayout={activeLayout}
             />
             <FiltersDropdown
-              title="Filters"
+              title={t("common.filters")}
               placement="bottom-end"
               isFiltersApplied={isIssueFilterActive(issueFilters)}
             >
@@ -256,7 +255,7 @@ export const CycleIssuesHeader: React.FC = observer(() => {
                 filters={issueFilters?.filters ?? {}}
                 handleFiltersUpdate={handleFiltersUpdate}
                 layoutDisplayFiltersOptions={
-                  activeLayout ? ISSUE_DISPLAY_FILTERS_BY_LAYOUT.issues[activeLayout] : undefined
+                  activeLayout ? ISSUE_DISPLAY_FILTERS_BY_PAGE.issues[activeLayout] : undefined
                 }
                 displayFilters={issueFilters?.displayFilters ?? {}}
                 handleDisplayFiltersUpdate={handleDisplayFilters}
@@ -267,10 +266,10 @@ export const CycleIssuesHeader: React.FC = observer(() => {
                 moduleViewDisabled={!currentProjectDetails?.module_view}
               />
             </FiltersDropdown>
-            <FiltersDropdown title="Display" placement="bottom-end">
+            <FiltersDropdown title={t("common.display")} placement="bottom-end">
               <DisplayFiltersSelection
                 layoutDisplayFiltersOptions={
-                  activeLayout ? ISSUE_DISPLAY_FILTERS_BY_LAYOUT.issues[activeLayout] : undefined
+                  activeLayout ? ISSUE_DISPLAY_FILTERS_BY_PAGE.issues[activeLayout] : undefined
                 }
                 displayFilters={issueFilters?.displayFilters ?? {}}
                 handleDisplayFiltersUpdate={handleDisplayFilters}
@@ -285,17 +284,18 @@ export const CycleIssuesHeader: React.FC = observer(() => {
             {canUserCreateIssue && (
               <>
                 <Button onClick={() => setAnalyticsModal(true)} variant="neutral-primary" size="sm">
-                  Analytics
+                  {t("common.analytics")}
                 </Button>
                 {!isCompletedCycle && (
                   <Button
+                    className="h-full self-start"
                     onClick={() => {
-                      setTrackElement("Cycle issues page");
+                      setTrackElement("Cycle work items page");
                       toggleCreateIssueModal(true, EIssuesStoreType.CYCLE);
                     }}
                     size="sm"
                   >
-                    Add Issue
+                    {t("issue.add.label")}
                   </Button>
                 )}
               </>
@@ -315,8 +315,8 @@ export const CycleIssuesHeader: React.FC = observer(() => {
           >
             <PanelRight className={cn("h-4 w-4", !isSidebarCollapsed ? "text-[#3E63DD]" : "text-custom-text-200")} />
           </button>
-        </div>
-      </div>
+        </Header.RightItem>
+      </Header>
     </>
   );
 });

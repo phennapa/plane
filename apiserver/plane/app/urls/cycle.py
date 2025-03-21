@@ -6,6 +6,8 @@ from plane.app.views import (
     CycleIssueViewSet,
     CycleDateCheckEndpoint,
     CycleFavoriteViewSet,
+    CycleProgressEndpoint,
+    CycleAnalyticsEndpoint,
     TransferCycleIssueEndpoint,
     CycleUserPropertiesEndpoint,
     CycleArchiveUnarchiveEndpoint,
@@ -15,12 +17,7 @@ from plane.app.views import (
 urlpatterns = [
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/",
-        CycleViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        CycleViewSet.as_view({"get": "list", "post": "create"}),
         name="project-cycle",
     ),
     path(
@@ -37,12 +34,7 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/cycle-issues/",
-        CycleIssueViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        CycleIssueViewSet.as_view({"get": "list", "post": "create"}),
         name="project-issue-cycle",
     ),
     path(
@@ -64,21 +56,12 @@ urlpatterns = [
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/user-favorite-cycles/",
-        CycleFavoriteViewSet.as_view(
-            {
-                "get": "list",
-                "post": "create",
-            }
-        ),
+        CycleFavoriteViewSet.as_view({"get": "list", "post": "create"}),
         name="user-favorite-cycle",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/user-favorite-cycles/<uuid:cycle_id>/",
-        CycleFavoriteViewSet.as_view(
-            {
-                "delete": "destroy",
-            }
-        ),
+        CycleFavoriteViewSet.as_view({"delete": "destroy"}),
         name="user-favorite-cycle",
     ),
     path(
@@ -105,5 +88,15 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/archived-cycles/<uuid:pk>/",
         CycleArchiveUnarchiveEndpoint.as_view(),
         name="cycle-archive-unarchive",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/progress/",
+        CycleProgressEndpoint.as_view(),
+        name="project-cycle",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/cycles/<uuid:cycle_id>/analytics/",
+        CycleAnalyticsEndpoint.as_view(),
+        name="project-cycle",
     ),
 ]

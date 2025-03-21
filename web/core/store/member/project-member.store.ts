@@ -1,36 +1,43 @@
 import set from "lodash/set";
 import sortBy from "lodash/sortBy";
+import uniq from "lodash/uniq";
+import update from "lodash/update";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 // types
+import { EUserPermissions } from "@plane/constants";
 import { IProjectBulkAddFormData, IProjectMember, IProjectMembership, IUserLite } from "@plane/types";
-// constants
-import { EUserProjectRoles } from "@/constants/project";
+// plane-web constants
 // services
 import { ProjectMemberService } from "@/services/project";
 // store
 import { IRouterStore } from "@/store/router.store";
 import { IUserStore } from "@/store/user";
 // store
+import { IProjectStore } from "../project/project.store";
 import { CoreRootStore } from "../root.store";
 import { IMemberRootStore } from ".";
 
-interface IProjectMemberDetails {
+export interface IProjectMemberDetails {
   id: string;
   member: IUserLite;
-  role: EUserProjectRoles;
+  role: EUserPermissions;
 }
 
 export interface IProjectMemberStore {
   // observables
+  projectMemberFetchStatusMap: {
+    [projectId: string]: boolean;
+  };
   projectMemberMap: {
     [projectId: string]: Record<string, IProjectMembership>;
   };
   // computed
   projectMemberIds: string[] | null;
   // computed actions
-  getProjectMemberDetails: (userId: string) => IProjectMemberDetails | null;
-  getProjectMemberIds: (projectId: string) => string[] | null;
+  getProjectMemberFetchStatus: (projectId: string) => boolean;
+  getProjectMemberDetails: (userId: string, projectId: string) => IProjectMemberDetails | null;
+  getProjectMemberIds: (projectId: string, includeGuestUsers: boolean) => string[] | null;
   // fetch actions
   fetchProjectMembers: (workspaceSlug: string, projectId: string) => Promise<IProjectMembership[]>;
   // bulk operation actions
@@ -44,13 +51,16 @@ export interface IProjectMemberStore {
     workspaceSlug: string,
     projectId: string,
     userId: string,
-    data: { role: EUserProjectRoles }
+    data: { role: EUserPermissions }
   ) => Promise<IProjectMember>;
   removeMemberFromProject: (workspaceSlug: string, projectId: string, userId: string) => Promise<void>;
 }
 
 export class ProjectMemberStore implements IProjectMemberStore {
   // observables
+  projectMemberFetchStatusMap: {
+    [projectId: string]: boolean;
+  } = {};
   projectMemberMap: {
     [projectId: string]: Record<string, IProjectMembership>;
   } = {};
@@ -58,6 +68,7 @@ export class ProjectMemberStore implements IProjectMemberStore {
   routerStore: IRouterStore;
   userStore: IUserStore;
   memberRoot: IMemberRootStore;
+  projectRoot: IProjectStore;
   // services
   projectMemberService;
 
@@ -78,6 +89,7 @@ export class ProjectMemberStore implements IProjectMemberStore {
     this.routerStore = _rootStore.router;
     this.userStore = _rootStore.user;
     this.memberRoot = _memberRoot;
+    this.projectRoot = _rootStore.projectRoot.project;
     // services
     this.projectMemberService = new ProjectMemberService();
   }
@@ -98,15 +110,18 @@ export class ProjectMemberStore implements IProjectMemberStore {
   }
 
   /**
+   * @description get the fetch status of a project member
+   * @param projectId
+   */
+  getProjectMemberFetchStatus = computedFn((projectId: string) => this.projectMemberFetchStatusMap?.[projectId]);
+
+  /**
    * @description get the details of a project member
    * @param userId
    */
-  getProjectMemberDetails = computedFn((userId: string) => {
-    const projectId = this.routerStore.projectId;
-    if (!projectId) return null;
+  getProjectMemberDetails = computedFn((userId: string, projectId: string) => {
     const projectMember = this.projectMemberMap?.[projectId]?.[userId];
     if (!projectMember) return null;
-
     const memberDetails: IProjectMemberDetails = {
       id: projectMember.id,
       role: projectMember.role,
@@ -119,9 +134,12 @@ export class ProjectMemberStore implements IProjectMemberStore {
    * @description get the list of all the user ids of all the members of a project using projectId
    * @param projectId
    */
-  getProjectMemberIds = computedFn((projectId: string): string[] | null => {
+  getProjectMemberIds = computedFn((projectId: string, includeGuestUsers: boolean): string[] | null => {
     if (!this.projectMemberMap?.[projectId]) return null;
     let members = Object.values(this.projectMemberMap?.[projectId]);
+    if (includeGuestUsers === false) {
+      members = members.filter((m) => m.role !== EUserPermissions.GUEST);
+    }
     members = sortBy(members, [
       (m) => m.member !== this.userStore.data?.id,
       (m) => this.memberRoot?.memberMap?.[m.member]?.display_name?.toLowerCase(),
@@ -141,6 +159,7 @@ export class ProjectMemberStore implements IProjectMemberStore {
         response.forEach((member) => {
           set(this.projectMemberMap, [projectId, member.member], member);
         });
+        set(this.projectMemberFetchStatusMap, [projectId], true);
       });
       return response;
     });
@@ -159,6 +178,13 @@ export class ProjectMemberStore implements IProjectMemberStore {
           set(this.projectMemberMap, [projectId, member.member], member);
         });
       });
+      update(this.projectRoot.projectMap, [projectId, "members"], (memberIds) =>
+        uniq([...memberIds, ...data.members.map((m) => m.member_id)])
+      );
+      this.projectRoot.projectMap[projectId].members = this.projectRoot.projectMap?.[projectId]?.members?.concat(
+        data.members.map((m) => m.member_id)
+      );
+
       return response;
     });
 
@@ -169,13 +195,8 @@ export class ProjectMemberStore implements IProjectMemberStore {
    * @param userId
    * @param data
    */
-  updateMember = async (
-    workspaceSlug: string,
-    projectId: string,
-    userId: string,
-    data: { role: EUserProjectRoles }
-  ) => {
-    const memberDetails = this.getProjectMemberDetails(userId);
+  updateMember = async (workspaceSlug: string, projectId: string, userId: string, data: { role: EUserPermissions }) => {
+    const memberDetails = this.getProjectMemberDetails(userId, projectId);
     if (!memberDetails) throw new Error("Member not found");
     // original data to revert back in case of error
     const originalProjectMemberData = this.projectMemberMap?.[projectId]?.[userId];
@@ -206,12 +227,15 @@ export class ProjectMemberStore implements IProjectMemberStore {
    * @param userId
    */
   removeMemberFromProject = async (workspaceSlug: string, projectId: string, userId: string) => {
-    const memberDetails = this.getProjectMemberDetails(userId);
+    const memberDetails = this.getProjectMemberDetails(userId, projectId);
     if (!memberDetails) throw new Error("Member not found");
     await this.projectMemberService.deleteProjectMember(workspaceSlug, projectId, memberDetails?.id).then(() => {
       runInAction(() => {
         delete this.projectMemberMap?.[projectId]?.[userId];
       });
+      this.projectRoot.projectMap[projectId].members = this.projectRoot.projectMap?.[projectId]?.members?.filter(
+        (memberId) => memberId !== userId
+      );
     });
   };
 }

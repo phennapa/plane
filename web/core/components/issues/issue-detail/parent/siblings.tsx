@@ -34,7 +34,7 @@ export const IssueParentSiblings: FC<TIssueParentSiblings> = observer((props) =>
   const subIssueIds = (parentIssue && subIssuesByIssueId(parentIssue.id)) || undefined;
 
   return (
-    <div>
+    <div className="my-1">
       {isLoading ? (
         <div className="flex items-center gap-2 whitespace-nowrap px-1 py-1 text-left text-xs text-custom-text-200">
           Loading
@@ -48,7 +48,7 @@ export const IssueParentSiblings: FC<TIssueParentSiblings> = observer((props) =>
         )
       ) : (
         <div className="flex items-center gap-2 whitespace-nowrap px-1 py-1 text-left text-xs text-custom-text-200">
-          No sibling issues
+          No sibling work items
         </div>
       )}
     </div>

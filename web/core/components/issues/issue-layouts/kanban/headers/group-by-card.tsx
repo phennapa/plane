@@ -15,7 +15,10 @@ import { CreateUpdateIssueModal } from "@/components/issues";
 // hooks
 import { useEventTracker } from "@/hooks/store";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
+import { CreateUpdateEpicModal } from "@/plane-web/components/epics/epic-modal";
 // types
+// Plane-web
+import { WorkFlowGroupTree } from "@/plane-web/components/workflow";
 
 interface IHeaderGroupByCard {
   sub_group_by: TIssueGroupByOptions | undefined;
@@ -24,27 +27,30 @@ interface IHeaderGroupByCard {
   icon?: React.ReactNode;
   title: string;
   count: number;
-  kanbanFilters: TIssueKanbanFilters;
-  handleKanbanFilters: any;
+  collapsedGroups: TIssueKanbanFilters;
+  handleCollapsedGroups: (toggle: "group_by" | "sub_group_by", value: string) => void;
   issuePayload: Partial<TIssue>;
   disableIssueCreation?: boolean;
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
+  isEpic?: boolean;
 }
 
 export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
   const {
+    group_by,
     sub_group_by,
     column_id,
     icon,
     title,
     count,
-    kanbanFilters,
-    handleKanbanFilters,
+    collapsedGroups,
+    handleCollapsedGroups,
     issuePayload,
     disableIssueCreation,
     addIssuesToView,
+    isEpic = false,
   } = props;
-  const verticalAlignPosition = sub_group_by ? false : kanbanFilters?.group_by.includes(column_id);
+  const verticalAlignPosition = sub_group_by ? false : collapsedGroups?.group_by.includes(column_id);
   // states
   const [isOpen, setIsOpen] = React.useState(false);
   const [openExistingIssueListModal, setOpenExistingIssueListModal] = React.useState(false);
@@ -71,26 +77,30 @@ export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
       setToast({
         type: TOAST_TYPE.SUCCESS,
         title: "Success!",
-        message: "Issues added to the cycle successfully.",
+        message: "Work items added to the cycle successfully.",
       });
     } catch (error) {
       setToast({
         type: TOAST_TYPE.ERROR,
         title: "Error!",
-        message: "Selected issues could not be added to the cycle. Please try again.",
+        message: "Selected work items could not be added to the cycle. Please try again.",
       });
     }
   };
 
   return (
     <>
-      <CreateUpdateIssueModal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        data={issuePayload}
-        storeType={storeType}
-        isDraft={isDraftIssue}
-      />
+      {isEpic ? (
+        <CreateUpdateEpicModal isOpen={isOpen} onClose={() => setIsOpen(false)} data={issuePayload} />
+      ) : (
+        <CreateUpdateIssueModal
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          data={issuePayload}
+          storeType={storeType}
+          isDraft={isDraftIssue}
+        />
+      )}
 
       {renderExistingIssueModal && (
         <ExistingIssuesListModal
@@ -103,17 +113,17 @@ export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
         />
       )}
       <div
-        className={`relative flex flex-shrink-0 gap-2 p-1.5 ${
+        className={`relative flex flex-shrink-0 gap-2 py-1.5 ${
           verticalAlignPosition ? `w-[44px] flex-col items-center` : `w-full flex-row items-center`
         }`}
       >
-        <div className="flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm">
+        <div className="flex h-[20px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm">
           {icon ? icon : <Circle width={14} strokeWidth={2} />}
         </div>
 
         <div
-          className={`relative flex items-center gap-1 ${
-            verticalAlignPosition ? `flex-col` : `w-full flex-row overflow-hidden`
+          className={`relative flex gap-1 ${
+            verticalAlignPosition ? `flex-col items-center` : `w-full flex-row items-baseline overflow-hidden`
           }`}
         >
           <div
@@ -124,16 +134,18 @@ export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
             {title}
           </div>
           <div
-            className={`flex-shrink-0 text-sm font-medium text-custom-text-300 ${verticalAlignPosition ? `` : `pl-2`}`}
+            className={`flex-shrink-0 text-sm font-medium text-custom-text-300 ${verticalAlignPosition ? `pr-0.5` : `pl-2`}`}
           >
             {count || 0}
           </div>
         </div>
 
+        <WorkFlowGroupTree groupBy={group_by} groupId={column_id} />
+
         {sub_group_by === null && (
           <div
             className="flex h-[20px] w-[20px] flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all hover:bg-custom-background-80"
-            onClick={() => handleKanbanFilters("group_by", column_id)}
+            onClick={() => handleCollapsedGroups("group_by", column_id)}
           >
             {verticalAlignPosition ? (
               <Maximize2 width={14} strokeWidth={2} />
@@ -159,7 +171,7 @@ export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
                   setIsOpen(true);
                 }}
               >
-                <span className="flex items-center justify-start gap-2">Create issue</span>
+                <span className="flex items-center justify-start gap-2">Create work item</span>
               </CustomMenu.MenuItem>
               <CustomMenu.MenuItem
                 onClick={() => {
@@ -167,7 +179,7 @@ export const HeaderGroupByCard: FC<IHeaderGroupByCard> = observer((props) => {
                   setOpenExistingIssueListModal(true);
                 }}
               >
-                <span className="flex items-center justify-start gap-2">Add an existing issue</span>
+                <span className="flex items-center justify-start gap-2">Add an existing work item</span>
               </CustomMenu.MenuItem>
             </CustomMenu>
           ) : (

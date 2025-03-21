@@ -1,27 +1,38 @@
 import React from "react";
-// editor
+// plane imports
 import { EditorReadOnlyRefApi, IRichTextReadOnlyEditor, RichTextReadOnlyEditorWithRef } from "@plane/editor";
+import { MakeOptional } from "@plane/types";
+// components
+import { EditorMentionsRoot } from "@/components/editor";
 // helpers
 import { cn } from "@/helpers/common.helper";
-// hooks
-import { useMention } from "@/hooks/use-mention";
+import { getReadOnlyEditorFileHandlers } from "@/helpers/editor.helper";
 
-interface RichTextReadOnlyEditorWrapperProps extends Omit<IRichTextReadOnlyEditor, "mentionHandler"> {}
+type RichTextReadOnlyEditorWrapperProps = MakeOptional<
+  Omit<IRichTextReadOnlyEditor, "fileHandler" | "mentionHandler">,
+  "disabledExtensions"
+> & {
+  anchor: string;
+  workspaceId: string;
+};
 
 export const RichTextReadOnlyEditor = React.forwardRef<EditorReadOnlyRefApi, RichTextReadOnlyEditorWrapperProps>(
-  ({ ...props }, ref) => {
-    const { mentionHighlights } = useMention();
-
-    return (
-      <RichTextReadOnlyEditorWithRef
-        ref={ref}
-        mentionHandler={{ highlights: mentionHighlights }}
-        {...props}
-        // overriding the customClassName to add relative class passed
-        containerClassName={cn("relative p-0 border-none", props.containerClassName)}
-      />
-    );
-  }
+  ({ anchor, workspaceId, disabledExtensions, ...props }, ref) => (
+    <RichTextReadOnlyEditorWithRef
+      ref={ref}
+      disabledExtensions={disabledExtensions ?? []}
+      fileHandler={getReadOnlyEditorFileHandlers({
+        anchor,
+        workspaceId,
+      })}
+      mentionHandler={{
+        renderComponent: (props) => <EditorMentionsRoot {...props} />,
+      }}
+      {...props}
+      // overriding the customClassName to add relative class passed
+      containerClassName={cn("relative p-0 border-none", props.containerClassName)}
+    />
+  )
 );
 
 RichTextReadOnlyEditor.displayName = "RichTextReadOnlyEditor";

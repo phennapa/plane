@@ -3,21 +3,22 @@
 import { useCallback, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
+import { Layers } from "lucide-react";
+// plane constants
+import { EIssueFilterType, EIssuesStoreType, ISSUE_DISPLAY_FILTERS_BY_PAGE } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 // types
 import { IIssueDisplayFilterOptions, IIssueDisplayProperties, IIssueFilterOptions } from "@plane/types";
 // ui
-import { Breadcrumbs, Button, LayersIcon } from "@plane/ui";
+import { Breadcrumbs, Button, Header } from "@plane/ui";
 // components
 import { BreadcrumbLink } from "@/components/common";
 import { DisplayFiltersSelection, FiltersDropdown, FilterSelection } from "@/components/issues";
 import { CreateUpdateWorkspaceViewModal } from "@/components/workspace";
-// constants
-import { EIssueFilterType, EIssuesStoreType, ISSUE_DISPLAY_FILTERS_BY_LAYOUT } from "@/constants/issue";
-import { EUserWorkspaceRoles } from "@/constants/workspace";
 // helpers
 import { isIssueFilterActive } from "@/helpers/filter.helper";
 // hooks
-import { useLabel, useMember, useUser, useIssues, useGlobalView } from "@/hooks/store";
+import { useLabel, useMember, useIssues, useGlobalView } from "@/hooks/store";
 
 export const GlobalIssuesHeader = observer(() => {
   // states
@@ -29,13 +30,11 @@ export const GlobalIssuesHeader = observer(() => {
     issuesFilter: { filters, updateFilters },
   } = useIssues(EIssuesStoreType.GLOBAL);
   const { getViewDetailsById } = useGlobalView();
-  const {
-    membership: { currentWorkspaceRole },
-  } = useUser();
   const { workspaceLabels } = useLabel();
   const {
     workspace: { workspaceMemberIds },
   } = useMember();
+  const { t } = useTranslation();
 
   const issueFilters = globalViewId ? filters[globalViewId.toString()] : undefined;
 
@@ -96,34 +95,31 @@ export const GlobalIssuesHeader = observer(() => {
     [workspaceSlug, updateFilters, globalViewId]
   );
 
-  const isAuthorizedUser = !!currentWorkspaceRole && currentWorkspaceRole >= EUserWorkspaceRoles.MEMBER;
-
   const isLocked = viewDetails?.is_locked;
 
   return (
     <>
       <CreateUpdateWorkspaceViewModal isOpen={createViewModal} onClose={() => setCreateViewModal(false)} />
-      <div className="relative z-[15] flex h-[3.75rem] w-full items-center justify-between gap-x-2 gap-y-4 bg-custom-sidebar-background-100 p-4">
-        <div className="relative flex gap-2">
+      <Header>
+        <Header.LeftItem>
           <Breadcrumbs>
             <Breadcrumbs.BreadcrumbItem
               type="text"
-              link={
-                <BreadcrumbLink label={`All Issues`} icon={<LayersIcon className="h-4 w-4 text-custom-text-300" />} />
-              }
+              link={<BreadcrumbLink label={t("views")} icon={<Layers className="h-4 w-4 text-custom-text-300" />} />}
             />
           </Breadcrumbs>
-        </div>
-        <div className="flex items-center gap-2">
-          {!isLocked && (
+        </Header.LeftItem>
+
+        <Header.RightItem>
+          {!isLocked ? (
             <>
               <FiltersDropdown
-                title="Filters"
+                title={t("common.filters")}
                 placement="bottom-end"
                 isFiltersApplied={isIssueFilterActive(issueFilters)}
               >
                 <FilterSelection
-                  layoutDisplayFiltersOptions={ISSUE_DISPLAY_FILTERS_BY_LAYOUT.my_issues.spreadsheet}
+                  layoutDisplayFiltersOptions={ISSUE_DISPLAY_FILTERS_BY_PAGE.my_issues.spreadsheet}
                   filters={issueFilters?.filters ?? {}}
                   handleFiltersUpdate={handleFiltersUpdate}
                   displayFilters={issueFilters?.displayFilters ?? {}}
@@ -132,9 +128,9 @@ export const GlobalIssuesHeader = observer(() => {
                   memberIds={workspaceMemberIds ?? undefined}
                 />
               </FiltersDropdown>
-              <FiltersDropdown title="Display" placement="bottom-end">
+              <FiltersDropdown title={t("common.display")} placement="bottom-end">
                 <DisplayFiltersSelection
-                  layoutDisplayFiltersOptions={ISSUE_DISPLAY_FILTERS_BY_LAYOUT.my_issues.spreadsheet}
+                  layoutDisplayFiltersOptions={ISSUE_DISPLAY_FILTERS_BY_PAGE.my_issues.spreadsheet}
                   displayFilters={issueFilters?.displayFilters ?? {}}
                   handleDisplayFiltersUpdate={handleDisplayFilters}
                   displayProperties={issueFilters?.displayProperties ?? {}}
@@ -142,14 +138,15 @@ export const GlobalIssuesHeader = observer(() => {
                 />
               </FiltersDropdown>
             </>
+          ) : (
+            <></>
           )}
-          {isAuthorizedUser && (
-            <Button variant="primary" size="sm" onClick={() => setCreateViewModal(true)}>
-              Add View
-            </Button>
-          )}
-        </div>
-      </div>
+
+          <Button variant="primary" size="sm" onClick={() => setCreateViewModal(true)}>
+            {t("workspace_views.add_view")}
+          </Button>
+        </Header.RightItem>
+      </Header>
     </>
   );
 });

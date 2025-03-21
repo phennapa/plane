@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 // icons
 import { Lightbulb } from "lucide-react";
 // images
-import latestFeatures from "@/public/onboarding/onboarding-pages.svg";
+import latestFeatures from "@/public/onboarding/onboarding-pages.webp";
 
 export const LatestFeatureBlock = () => {
   const { resolvedTheme } = useTheme();
@@ -28,7 +28,7 @@ export const LatestFeatureBlock = () => {
         <div className="h-[90%]">
           <Image
             src={latestFeatures}
-            alt="Plane Issues"
+            alt="Plane Work items"
             className={`-mt-2 ml-10 h-full rounded-md ${
               resolvedTheme === "dark" ? "bg-onboarding-background-100" : "bg-custom-primary-70"
             }`}

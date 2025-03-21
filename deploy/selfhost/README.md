@@ -10,7 +10,7 @@ Let's get started!
 
 <details>
   <summary>Option 1 - Using Cloud Server</summary>
-  <p>Best way to start is to create EC2 maching on AWS. It must of minimum t3.medium/t3a/medium</p>
+  <p>Best way to start is to create EC2 machine on AWS. It must have minimum of 2vCPU and 4GB RAM.</p>
   <p>Run the below command to install docker engine.</p>
 
 `curl -fsSL https://get.docker.com | sh -`
@@ -55,34 +55,29 @@ Installing plane is a very easy and minimal step process.
 - User context used must have access to docker services. In most cases, use sudo su to switch as root user
 - Use the terminal (or gitbash) window to run all the future steps
 
-### Downloading Latest Stable Release
+### Downloading Latest Release
 
 ```
 mkdir plane-selfhost
 
 cd plane-selfhost
+```
 
-curl -fsSL -o setup.sh https://raw.githubusercontent.com/makeplane/plane/master/deploy/selfhost/install.sh
+#### For *Docker Compose* based setup
+
+```
+curl -fsSL -o setup.sh https://github.com/makeplane/plane/releases/latest/download/setup.sh
 
 chmod +x setup.sh
 ```
 
-<details>
-    <summary>Downloading Preview Release</summary>
+#### For *Docker Swarm* based setup
 
 ```
-mkdir plane-selfhost
-
-cd plane-selfhost
-
-export RELEASE=preview
-
-curl -fsSL https://raw.githubusercontent.com/makeplane/plane/$BRANCH/deploy/selfhost/install.sh | sed  's@BRANCH=master@BRANCH='"$RELEASE"'@' > setup.sh
+curl -fsSL -o setup.sh https://github.com/makeplane/plane/releases/latest/download/swarm.sh
 
 chmod +x setup.sh
 ```
-
-</details>
 
 ---
 
@@ -94,8 +89,9 @@ Lets get started by running the `./setup.sh` command.
 
 This will prompt you with the below options.
 
+#### Docker Compose 
 ```bash
-Select a Action you want to perform:
+Select an Action you want to perform:
    1) Install (x86_64)
    2) Start
    3) Stop
@@ -104,17 +100,42 @@ Select a Action you want to perform:
    6) View Logs
    7) Backup Data
    8) Exit
+
 Action [2]: 1
 ```
 
 For the 1st time setup, type "1" as action input.
 
-This will create a create a folder `plane-app` or `plane-app-preview` (in case of preview deployment) and will download 2 files inside that
+This will create a folder `plane-app` and will download 2 files inside that
 
 - `docker-compose.yaml`
 - `plane.env`
 
-Again the `options [1-7]` will be popped up and this time hit `7` to exit.
+Again the `options [1-8]` will be popped up, and this time hit `8` to exit.
+
+#### Docker Swarm
+
+```bash
+Select an Action you want to perform:
+   1) Deploy Stack
+   2) Remove Stack
+   3) View Stack Status
+   4) Redeploy Stack
+   5) Upgrade
+   6) View Logs
+   7) Exit
+
+Action [3]: 1
+```
+
+For the 1st time setup, type "1" as action input.
+
+This will create a create a folder `plane-app` and will download 2 files inside that
+
+- `docker-compose.yaml`
+- `plane.env`
+
+Again the `options [1-7]` will be popped up, and this time hit `7` to exit.
 
 ---
 
@@ -133,7 +154,7 @@ There are many other settings you can play with, but we suggest you configure `E
 
 ---
 
-### Continue with setup - Start Server
+### Continue with setup - Start Server (Docker Compose)
 
 Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `2` to start the sevices
 
@@ -164,9 +185,11 @@ You have successfully self hosted `Plane` instance. Access the application by go
 
 ---
 
-### Stopping the Server
+### Stopping the Server / Remove Stack
 
-In case you want to make changes to `.env` variables, we suggest you to stop the services before doing that.
+In case you want to make changes to `plane.env` variables, we suggest you to stop the services before doing that.
+
+#### Docker Compose 
 
 Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `3` to stop the sevices
 
@@ -188,14 +211,34 @@ If all goes well, you must see something like this
 
 ![Stop Services](images/stopped.png)
 
+#### Docker Swarm
+
+Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `2` to stop the sevices
+
+```bash
+Select an Action you want to perform:
+   1) Deploy Stack
+   2) Remove Stack
+   3) View Stack Status
+   4) Redeploy Stack
+   5) Upgrade
+   6) View Logs
+   7) Exit
+
+Action [3]: 2
+```
+
+If all goes well, you will see the confirmation from docker cli
+
 ---
 
-### Restarting the Server
+### Restarting the Server / Redeploy Stack
 
-In case you want to make changes to `.env` variables, without stopping the server or you noticed some abnormalies in services, you can restart the services with RESTART option.
+In case you want to make changes to `plane.env` variables, without stopping the server or you noticed some abnormalies in services, you can restart the services with `RESTART` / `REDEPLOY` option.
 
 Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `4` to restart the sevices
 
+#### Docker Compose
 ```bash
 Select a Action you want to perform:
    1) Install (x86_64)
@@ -214,13 +257,31 @@ If all goes well, you must see something like this
 
 ![Restart Services](images/restart.png)
 
+#### Docker Swarm
+
+```bash
+   1) Deploy Stack
+   2) Remove Stack
+   3) View Stack Status
+   4) Redeploy Stack
+   5) Upgrade
+   6) View Logs
+   7) Exit
+
+Action [3]: 4
+```
+
+If all goes well, you will see the confirmation from docker cli
+
 ---
 
-### Upgrading Plane Version
+### Upgrading Plane Version 
 
 It is always advised to keep Plane up to date with the latest release.
 
 Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `5` to upgrade the release.
+
+#### Docker Compose
 
 ```bash
 Select a Action you want to perform:
@@ -236,7 +297,7 @@ Select a Action you want to perform:
 Action [2]: 5
 ```
 
-By choosing this, it will stop the services and then will download the latest `docker-compose.yaml` and `variables-upgrade.env`. Here system will not replace `.env` with the new one.
+By choosing this, it will stop the services and then will download the latest `docker-compose.yaml` and `plane.env`.
 
 You must expect the below message
 
@@ -244,9 +305,33 @@ You must expect the below message
 
 Once done, choose `8` to exit from prompt.
 
-> It is very important for you to compare the 2 files `variables-upgrade.env` and `.env`. Copy the newly added variable from downloaded file to `.env` and set the expected values.
+> It is very important for you to validate the `plane.env` for the new changes.
 
 Once done with making changes in `plane.env` file, jump on to `Start Server`
+
+#### Docker Swarm
+
+Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `5` to upgrade the release.
+
+```bash
+   1) Deploy Stack
+   2) Remove Stack
+   3) View Stack Status
+   4) Redeploy Stack
+   5) Upgrade
+   6) View Logs
+   7) Exit
+
+Action [3]: 5
+```
+
+By choosing this, it will stop the services and then will download the latest `docker-compose.yaml` and `plane.env`.
+
+Once done, choose `7` to exit from prompt.
+
+> It is very important for you to validate the `plane.env` for the new changes.
+
+Once done with making changes in `plane.env` file, jump on to `Redeploy Stack`
 
 ---
 
@@ -254,7 +339,11 @@ Once done with making changes in `plane.env` file, jump on to `Start Server`
 
 There would a time when you might want to check what is happening inside the API, Worker or any other container.  
 
-Lets again run the `./setup.sh` command. You will again be prompted with the below options. This time select `6` to view logs.
+Lets again run the `./setup.sh` command. You will again be prompted with the below options. 
+
+This time select `6` to view logs.
+
+#### Docker Compose
 
 ```bash
 Select a Action you want to perform:
@@ -270,7 +359,22 @@ Select a Action you want to perform:
 Action [2]: 6
 ```
 
+#### Docker Swarm
 
+
+```bash
+   1) Deploy Stack
+   2) Remove Stack
+   3) View Stack Status
+   4) Redeploy Stack
+   5) Upgrade
+   6) View Logs
+   7) Exit
+
+Action [3]: 6
+```
+
+#### Service Menu Options for Logs
 This will further open sub-menu with list of services
 ```bash
 Select a Service you want to view the logs for:
@@ -284,9 +388,10 @@ Select a Service you want to view the logs for:
    8) Redis
    9) Postgres
    10) Minio
+   11) RabbitMQ
    0) Back to Main Menu
 
-Service: 
+Service: 3
 ```
 
 Select any of the service to view the logs e.g. `3`. Expect something similar to this
@@ -340,7 +445,7 @@ Similarly, you can view the logs of other services.
 
 ---
 
-### Backup Data
+### Backup Data (Docker Compose)
 
 There would a time when you might want to backup your data from docker volumes to external storage like S3 or drives.
 
@@ -372,8 +477,60 @@ Backup completed successfully. Backup files are stored in /....../plane-app/back
 
 ---
 
+### Restore Data (Docker Compose)
 
-## Upgrading from v0.13.2 to v0.14.x
+When you want to restore the previously backed-up data, follow the instructions below.
+
+1. Make sure that Plane-CE is installed, started, and then stopped. This ensures that the Docker volumes are created.
+
+1. Download the restore script using the command below. We suggest downloading it in the same folder as `setup.sh`.
+
+   ```bash
+   curl -fsSL -o restore.sh https://raw.githubusercontent.com/makeplane/plane/master/deploy/selfhost/restore.sh
+   chmod +x restore.sh
+   ```
+
+1. Execute the command below to restore your data.
+
+   ```bash
+   ./restore.sh <path to backup folder containing *.tar.gz files>
+   ```
+
+   As an example, for a backup folder `/opt/plane-selfhost/plane-app/backup/20240722-0914`, expect the response below:
+
+   ```bash
+   --------------------------------------------
+    ____  _                          ///////// 
+   |  _ \| | __ _ _ __   ___         ///////// 
+   | |_) | |/ _` | '_ \ / _ \   /////    ///// 
+   |  __/| | (_| | | | |  __/   /////    ///// 
+   |_|   |_|\__,_|_| |_|\___|        ////      
+                                    ////      
+   --------------------------------------------
+   Project management tool from the future
+   --------------------------------------------
+   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/pgdata.tar.gz
+   .....Restoring plane-app_pgdata
+   .....Successfully restored volume plane-app_pgdata from pgdata.tar.gz
+
+   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/redisdata.tar.gz
+   .....Restoring plane-app_redisdata
+   .....Successfully restored volume plane-app_redisdata from redisdata.tar.gz
+
+   Found /opt/plane-selfhost/plane-app/backup/20240722-0914/uploads.tar.gz
+   .....Restoring plane-app_uploads
+   .....Successfully restored volume plane-app_uploads from uploads.tar.gz
+
+
+   Restore completed successfully.
+   ```
+
+1. Start the Plane instance using `./setup.sh start`.
+
+---
+
+<details>
+   <summary><h2>Upgrading from v0.13.2 to v0.14.x</h2></summary>
 
 This is one time activity for users who are upgrading from v0.13.2 to v0.14.0
 
@@ -445,3 +602,4 @@ In case the suffixes are wrong or the mentioned volumes are not found, you will 
 In case of successful migration, it will be a silent exit without error.
 
 Now its time to restart v0.14.0 setup.
+</details>

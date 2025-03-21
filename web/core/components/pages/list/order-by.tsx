@@ -1,12 +1,10 @@
 "use client";
 
-import { ArrowDownWideNarrow, Check, ChevronDown } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, Check, ChevronDown } from "lucide-react";
 // types
 import { TPageFiltersSortBy, TPageFiltersSortKey } from "@plane/types";
 // ui
 import { CustomMenu, getButtonStyling } from "@plane/ui";
-// constants
-import { PAGE_SORTING_KEY_OPTIONS } from "@/constants/page";
 // helpers
 import { cn } from "@/helpers/common.helper";
 
@@ -15,6 +13,15 @@ type Props = {
   sortBy: TPageFiltersSortBy;
   sortKey: TPageFiltersSortKey;
 };
+
+const PAGE_SORTING_KEY_OPTIONS: {
+  key: TPageFiltersSortKey;
+  label: string;
+}[] = [
+  { key: "name", label: "Name" },
+  { key: "created_at", label: "Date created" },
+  { key: "updated_at", label: "Date modified" },
+];
 
 export const PageOrderByDropdown: React.FC<Props> = (props) => {
   const { onChange, sortBy, sortKey } = props;
@@ -26,7 +33,7 @@ export const PageOrderByDropdown: React.FC<Props> = (props) => {
     <CustomMenu
       customButton={
         <div className={cn(getButtonStyling("neutral-primary", "sm"), "px-2 text-custom-text-300")}>
-          <ArrowDownWideNarrow className="h-3 w-3" />
+          {!isDescending ? <ArrowUpWideNarrow className="size-3 " /> : <ArrowDownWideNarrow className="size-3 " />}
           {orderByDetails?.label}
           <ChevronDown className="h-3 w-3" strokeWidth={2} />
         </div>

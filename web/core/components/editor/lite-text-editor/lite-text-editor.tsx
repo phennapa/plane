@@ -1,21 +1,26 @@
-import React from "react";
-// editor
-import { EditorRefApi, ILiteTextEditor, LiteTextEditorWithRef } from "@plane/editor";
-// types
-import { IUserLite } from "@plane/types";
+import React, { useState } from "react";
+// plane constants
+import { EIssueCommentAccessSpecifier } from "@plane/constants";
+// plane editor
+import { EditorRefApi, ILiteTextEditor, LiteTextEditorWithRef, TFileHandler } from "@plane/editor";
+// i18n
+import { useTranslation } from "@plane/i18n";
 // components
-import { IssueCommentToolbar } from "@/components/editor";
-// constants
-import { EIssueCommentAccessSpecifier } from "@/constants/issue";
+import { MakeOptional } from "@plane/types";
+import { EditorMentionsRoot, IssueCommentToolbar } from "@/components/editor";
 // helpers
 import { cn } from "@/helpers/common.helper";
-import { isEmptyHtmlString } from "@/helpers/string.helper";
+import { isCommentEmpty } from "@/helpers/string.helper";
 // hooks
-import { useMember, useMention, useUser } from "@/hooks/store";
-// services
-import { FileService } from "@/services/file.service";
+import { useEditorConfig, useEditorMention } from "@/hooks/editor";
+// plane web hooks
+import { useEditorFlagging } from "@/plane-web/hooks/use-editor-flagging";
+// plane web services
+import { WorkspaceService } from "@/plane-web/services";
+const workspaceService = new WorkspaceService();
 
-interface LiteTextEditorWrapperProps extends Omit<ILiteTextEditor, "fileHandler" | "mentionHandler"> {
+interface LiteTextEditorWrapperProps
+  extends MakeOptional<Omit<ILiteTextEditor, "fileHandler" | "mentionHandler">, "disabledExtensions"> {
   workspaceSlug: string;
   workspaceId: string;
   projectId: string;
@@ -24,87 +29,104 @@ interface LiteTextEditorWrapperProps extends Omit<ILiteTextEditor, "fileHandler"
   showAccessSpecifier?: boolean;
   showSubmitButton?: boolean;
   isSubmitting?: boolean;
+  showToolbarInitially?: boolean;
+  uploadFile: TFileHandler["upload"];
+  issue_id?: string;
 }
 
-const fileService = new FileService();
-
 export const LiteTextEditor = React.forwardRef<EditorRefApi, LiteTextEditorWrapperProps>((props, ref) => {
+  const { t } = useTranslation();
   const {
     containerClassName,
     workspaceSlug,
     workspaceId,
     projectId,
+    issue_id,
     accessSpecifier,
     handleAccessChange,
     showAccessSpecifier = false,
     showSubmitButton = true,
     isSubmitting = false,
-    placeholder = "Add comment...",
+    showToolbarInitially = true,
+    placeholder = t("issue.comments.placeholder"),
+    uploadFile,
+    disabledExtensions: additionalDisabledExtensions,
     ...rest
   } = props;
-  // store hooks
-  const { data: currentUser } = useUser();
-  const {
-    getUserDetails,
-    project: { getProjectMemberIds },
-  } = useMember();
-  // derived values
-  const projectMemberIds = getProjectMemberIds(projectId);
-  const projectMemberDetails = projectMemberIds?.map((id) => getUserDetails(id) as IUserLite);
-  // use-mention
-  const { mentionHighlights, mentionSuggestions } = useMention({
-    workspaceSlug,
-    projectId,
-    members: projectMemberDetails,
-    user: currentUser ?? undefined,
+  // states
+  const [isFocused, setIsFocused] = useState(showToolbarInitially);
+  // editor flaggings
+  const { liteTextEditor: disabledExtensions } = useEditorFlagging(workspaceSlug?.toString());
+  // use editor mention
+  const { fetchMentions } = useEditorMention({
+    searchEntity: async (payload) =>
+      await workspaceService.searchEntity(workspaceSlug?.toString() ?? "", {
+        ...payload,
+        project_id: projectId?.toString() ?? "",
+        issue_id: issue_id,
+      }),
   });
-
-  const isEmpty =
-    props.initialValue?.trim() === "" ||
-    props.initialValue === "<p></p>" ||
-    (isEmptyHtmlString(props.initialValue ?? "") && !props.initialValue?.includes("mention-component"));
-
+  // editor config
+  const { getEditorFileHandlers } = useEditorConfig();
   function isMutableRefObject<T>(ref: React.ForwardedRef<T>): ref is React.MutableRefObject<T | null> {
     return !!ref && typeof ref === "object" && "current" in ref;
   }
+  // derived values
+  const isEmpty = isCommentEmpty(props.initialValue);
+  const editorRef = isMutableRefObject<EditorRefApi>(ref) ? ref.current : null;
 
   return (
-    <div className="border border-custom-border-200 rounded p-3 space-y-3">
+    <div
+      className={cn("relative border border-custom-border-200 rounded p-3")}
+      onFocus={() => !showToolbarInitially && setIsFocused(true)}
+      onBlur={() => !showToolbarInitially && setIsFocused(false)}
+    >
       <LiteTextEditorWithRef
         ref={ref}
-        fileHandler={{
-          upload: fileService.getUploadFileFunction(workspaceSlug),
-          delete: fileService.getDeleteImageFunction(workspaceId),
-          restore: fileService.getRestoreImageFunction(workspaceId),
-          cancel: fileService.cancelUpload,
-        }}
+        disabledExtensions={[...disabledExtensions, ...(additionalDisabledExtensions ?? [])]}
+        fileHandler={getEditorFileHandlers({
+          projectId,
+          uploadFile,
+          workspaceId,
+          workspaceSlug,
+        })}
         mentionHandler={{
-          highlights: mentionHighlights,
-          suggestions: mentionSuggestions,
+          searchCallback: async (query) => {
+            const res = await fetchMentions(query);
+            if (!res) throw new Error("Failed in fetching mentions");
+            return res;
+          },
+          renderComponent: (props) => <EditorMentionsRoot {...props} />,
         }}
         placeholder={placeholder}
         containerClassName={cn(containerClassName, "relative")}
         {...rest}
       />
-      <IssueCommentToolbar
-        accessSpecifier={accessSpecifier}
-        executeCommand={(key) => {
-          if (isMutableRefObject<EditorRefApi>(ref)) {
-            ref.current?.executeMenuItemCommand(key);
-          }
-        }}
-        handleAccessChange={handleAccessChange}
-        handleSubmit={() => {
-          if (isMutableRefObject<EditorRefApi>(ref)) {
-            rest.onEnterKeyPress?.(ref.current?.getHTML() ?? "");
-          }
-        }}
-        isCommentEmpty={isEmpty}
-        isSubmitting={isSubmitting}
-        showAccessSpecifier={showAccessSpecifier}
-        editorRef={isMutableRefObject<EditorRefApi>(ref) ? ref : null}
-        showSubmitButton={showSubmitButton}
-      />
+      <div
+        className={cn(
+          "transition-all duration-300 ease-out origin-top overflow-hidden",
+          isFocused ? "max-h-[200px] opacity-100 scale-y-100 mt-3" : "max-h-0 opacity-0 scale-y-0 invisible"
+        )}
+      >
+        <IssueCommentToolbar
+          accessSpecifier={accessSpecifier}
+          executeCommand={(item) => {
+            // TODO: update this while toolbar homogenization
+            // @ts-expect-error type mismatch here
+            editorRef?.executeMenuItemCommand({
+              itemKey: item.itemKey,
+              ...item.extraProps,
+            });
+          }}
+          handleAccessChange={handleAccessChange}
+          handleSubmit={(e) => rest.onEnterKeyPress?.(e)}
+          isCommentEmpty={isEmpty}
+          isSubmitting={isSubmitting}
+          showAccessSpecifier={showAccessSpecifier}
+          editorRef={editorRef}
+          showSubmitButton={showSubmitButton}
+        />
+      </div>
     </div>
   );
 });

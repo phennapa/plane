@@ -7,11 +7,14 @@ import { useParams } from "next/navigation";
 import { usePopper } from "react-popper";
 import { Check, Search } from "lucide-react";
 import { Combobox } from "@headlessui/react";
+// i18n
+import { useTranslation } from "@plane/i18n";
 //components
 import { DiceIcon } from "@plane/ui";
 //store
 import { cn } from "@/helpers/common.helper";
 import { useModule } from "@/hooks/store";
+import { usePlatformOS } from "@/hooks/use-platform-os";
 //hooks
 //icon
 //types
@@ -34,6 +37,8 @@ interface Props {
 
 export const ModuleOptions = observer((props: Props) => {
   const { projectId, isOpen, referenceElement, placement, multiple } = props;
+  // i18n
+  const { t } = useTranslation();
   // states
   const [query, setQuery] = useState("");
   const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
@@ -42,14 +47,17 @@ export const ModuleOptions = observer((props: Props) => {
   // store hooks
   const { workspaceSlug } = useParams();
   const { getProjectModuleIds, fetchModules, getModuleById } = useModule();
+  const { isMobile } = usePlatformOS();
 
   useEffect(() => {
     if (isOpen) {
       onOpen();
-      inputRef.current && inputRef.current.focus();
+      if (!isMobile) {
+        inputRef.current && inputRef.current.focus();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   // popper-js init
   const { styles, attributes } = usePopper(referenceElement, popperElement, {
@@ -93,11 +101,11 @@ export const ModuleOptions = observer((props: Props) => {
   if (!multiple)
     options?.unshift({
       value: null,
-      query: "No module",
+      query: t("module.no_module"),
       content: (
         <div className="flex items-center gap-2">
           <DiceIcon className="h-3 w-3 flex-shrink-0" />
-          <span className="flex-grow truncate">No module</span>
+          <span className="flex-grow truncate">{t("module.no_module")}</span>
         </div>
       ),
     });
@@ -121,7 +129,7 @@ export const ModuleOptions = observer((props: Props) => {
             className="w-full bg-transparent py-1 text-xs text-custom-text-200 placeholder:text-custom-text-400 focus:outline-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
+            placeholder={t("common.search.label")}
             displayValue={(assigned: any) => assigned?.name}
             onKeyDown={searchInputKeyDown}
           />
@@ -153,10 +161,10 @@ export const ModuleOptions = observer((props: Props) => {
                 </Combobox.Option>
               ))
             ) : (
-              <p className="px-1.5 py-1 italic text-custom-text-400">No matching results</p>
+              <p className="px-1.5 py-1 italic text-custom-text-400">{t("common.search.no_matching_results")}</p>
             )
           ) : (
-            <p className="px-1.5 py-1 italic text-custom-text-400">Loading...</p>
+            <p className="px-1.5 py-1 italic text-custom-text-400">{t("common.loading")}</p>
           )}
         </div>
       </div>

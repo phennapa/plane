@@ -7,6 +7,8 @@ import { useTheme } from "next-themes";
 import { Controller, useForm } from "react-hook-form";
 import { Eye, EyeOff } from "lucide-react";
 // types
+import { USER_DETAILS, E_ONBOARDING_STEP_1, E_ONBOARDING_STEP_2 } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { IUser, TUserProfile, TOnboardingSteps } from "@plane/types";
 // ui
 import { Button, Input, Spinner, TOAST_TYPE, setToast } from "@plane/ui";
@@ -15,24 +17,23 @@ import { PasswordStrengthMeter } from "@/components/account";
 import { UserImageUploadModal } from "@/components/core";
 import { OnboardingHeader, SwitchAccountDropdown } from "@/components/onboarding";
 // constants
-import { USER_DETAILS, E_ONBOARDING_STEP_1, E_ONBOARDING_STEP_2 } from "@/constants/event-tracker";
 // helpers
+import { getFileURL } from "@/helpers/file.helper";
 import { E_PASSWORD_STRENGTH, getPasswordStrength } from "@/helpers/password.helper";
 // hooks
 import { useEventTracker, useUser, useUserProfile } from "@/hooks/store";
-// services
 // assets
-import ProfileSetupDark from "@/public/onboarding/profile-setup-dark.svg";
-import ProfileSetupLight from "@/public/onboarding/profile-setup-light.svg";
-import UserPersonalizationDark from "@/public/onboarding/user-personalization-dark.svg";
-import UserPersonalizationLight from "@/public/onboarding/user-personalization-light.svg";
+import ProfileSetupDark from "@/public/onboarding/profile-setup-dark.webp";
+import ProfileSetupLight from "@/public/onboarding/profile-setup-light.webp";
+import UserPersonalizationDark from "@/public/onboarding/user-personalization-dark.webp";
+import UserPersonalizationLight from "@/public/onboarding/user-personalization-light.webp";
+// services
 import { AuthService } from "@/services/auth.service";
-import { FileService } from "@/services/file.service";
 
 type TProfileSetupFormValues = {
   first_name: string;
   last_name: string;
-  avatar?: string | null;
+  avatar_url?: string | null;
   password?: string;
   confirm_password?: string;
   role?: string;
@@ -42,7 +43,7 @@ type TProfileSetupFormValues = {
 const defaultValues: Partial<TProfileSetupFormValues> = {
   first_name: "",
   last_name: "",
-  avatar: "",
+  avatar_url: "",
   password: undefined,
   confirm_password: undefined,
   role: undefined,
@@ -77,7 +78,6 @@ const USER_DOMAIN = [
   "Other",
 ];
 
-const fileService = new FileService();
 const authService = new AuthService();
 
 export const ProfileSetup: React.FC<Props> = observer((props) => {
@@ -86,13 +86,14 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
   const [profileSetupStep, setProfileSetupStep] = useState<EProfileSetupSteps>(
     user?.is_password_autoset ? EProfileSetupSteps.USER_DETAILS : EProfileSetupSteps.ALL
   );
-  const [isRemoving, setIsRemoving] = useState(false);
   const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
   const [isPasswordInputFocused, setIsPasswordInputFocused] = useState(false);
   const [showPassword, setShowPassword] = useState({
     password: false,
     retypePassword: false,
   });
+  // plane hooks
+  const { t } = useTranslation();
   // hooks
   const { resolvedTheme } = useTheme();
   // store hooks
@@ -112,10 +113,12 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
       ...defaultValues,
       first_name: user?.first_name,
       last_name: user?.last_name,
-      avatar: user?.avatar,
+      avatar_url: user?.avatar_url,
     },
     mode: "onChange",
   });
+  // derived values
+  const userAvatar = watch("avatar_url");
 
   const handleShowPassword = (key: keyof typeof showPassword) =>
     setShowPassword((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -129,7 +132,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
     const userDetailsPayload: Partial<IUser> = {
       first_name: formData.first_name,
       last_name: formData.last_name,
-      avatar: formData.avatar,
+      avatar_url: formData.avatar_url ?? undefined,
     };
     const profileUpdatePayload: Partial<TUserProfile> = {
       use_case: formData.use_case,
@@ -173,7 +176,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
     const userDetailsPayload: Partial<IUser> = {
       first_name: formData.first_name,
       last_name: formData.last_name,
-      avatar: formData.avatar,
+      avatar_url: formData.avatar_url ?? undefined,
     };
     try {
       await Promise.all([
@@ -240,12 +243,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
 
   const handleDelete = (url: string | null | undefined) => {
     if (!url) return;
-
-    setIsRemoving(true);
-    fileService.deleteUserFile(url).finally(() => {
-      setValue("avatar", "");
-      setIsRemoving(false);
-    });
+    setValue("avatar_url", "");
   };
 
   // derived values
@@ -302,13 +300,12 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
               <>
                 <Controller
                   control={control}
-                  name="avatar"
+                  name="avatar_url"
                   render={({ field: { onChange, value } }) => (
                     <UserImageUploadModal
                       isOpen={isImageUploadModalOpen}
                       onClose={() => setIsImageUploadModalOpen(false)}
-                      isRemoving={isRemoving}
-                      handleDelete={() => handleDelete(getValues("avatar"))}
+                      handleRemove={async () => handleDelete(getValues("avatar_url"))}
                       onSuccess={(url) => {
                         onChange(url);
                         setIsImageUploadModalOpen(false);
@@ -319,7 +316,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                 />
                 <div className="space-y-1 flex items-center justify-center">
                   <button type="button" onClick={() => setIsImageUploadModalOpen(true)}>
-                    {!watch("avatar") || watch("avatar") === "" ? (
+                    {!userAvatar || userAvatar === "" ? (
                       <div className="flex flex-col items-center justify-between">
                         <div className="relative h-14 w-14 overflow-hidden">
                           <div className="absolute left-0 top-0 flex items-center justify-center h-full w-full rounded-full text-white text-3xl font-medium bg-[#9747FF] uppercase">
@@ -333,7 +330,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                     ) : (
                       <div className="relative mr-3 h-16 w-16 overflow-hidden">
                         <img
-                          src={watch("avatar") || undefined}
+                          src={getFileURL(userAvatar ?? "")}
                           className="absolute left-0 top-0 h-full w-full rounded-full object-cover"
                           onClick={() => setIsImageUploadModalOpen(true)}
                           alt={user?.display_name}
@@ -372,6 +369,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                           hasError={Boolean(errors.first_name)}
                           placeholder="Wilbur"
                           className="w-full border-onboarding-border-100"
+                          autoComplete="on"
                         />
                       )}
                     />
@@ -405,6 +403,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                           hasError={Boolean(errors.last_name)}
                           placeholder="Wright"
                           className="w-full border-onboarding-border-100"
+                          autoComplete="on"
                         />
                       )}
                     />
@@ -417,7 +416,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                   <>
                     <div className="space-y-1">
                       <label className="text-sm text-onboarding-text-300 font-medium" htmlFor="password">
-                        Set a password (optional)
+                        Set a password ({t("common.optional")})
                       </label>
                       <Controller
                         control={control}
@@ -438,6 +437,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                               className="w-full border-[0.5px] border-onboarding-border-100 pr-12 placeholder:text-onboarding-text-400"
                               onFocus={() => setIsPasswordInputFocused(true)}
                               onBlur={() => setIsPasswordInputFocused(false)}
+                              autoComplete="on"
                             />
                             {showPassword.password ? (
                               <EyeOff
@@ -457,7 +457,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                     </div>
                     <div className="space-y-1">
                       <label className="text-sm text-onboarding-text-300 font-medium" htmlFor="confirm_password">
-                        Confirm password (optional)
+                        {t("auth.common.password.confirm_password.label")} ({t("common.optional")})
                       </label>
                       <Controller
                         control={control}
@@ -476,7 +476,7 @@ export const ProfileSetup: React.FC<Props> = observer((props) => {
                               onChange={onChange}
                               ref={ref}
                               hasError={Boolean(errors.confirm_password)}
-                              placeholder="Confirm password..."
+                              placeholder={t("auth.common.password.confirm_password.placeholder")}
                               className="w-full border-onboarding-border-100 pr-12 placeholder:text-onboarding-text-400"
                             />
                             {showPassword.retypePassword ? (

@@ -1,18 +1,23 @@
 #!/bin/bash
 
-BRANCH=master
+BRANCH=${BRANCH:-master}
 SCRIPT_DIR=$PWD
 SERVICE_FOLDER=plane-app
 PLANE_INSTALL_DIR=$PWD/$SERVICE_FOLDER
-export APP_RELEASE=$BRANCH
+export APP_RELEASE=stable
 export DOCKERHUB_USER=makeplane
-export PULL_POLICY=always
-USE_GLOBAL_IMAGES=1
+export PULL_POLICY=${PULL_POLICY:-if_not_present}
+export GH_REPO=makeplane/plane
+export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
+export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deploy/selfhost"
 
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+CPU_ARCH=$(uname -m)
+OS_NAME=$(uname)
+UPPER_CPU_ARCH=$(tr '[:lower:]' '[:upper:]' <<< "$CPU_ARCH")
+
+mkdir -p $PLANE_INSTALL_DIR/archive
+DOCKER_FILE_PATH=$PLANE_INSTALL_DIR/docker-compose.yaml
+DOCKER_ENV_PATH=$PLANE_INSTALL_DIR/plane.env
 
 function print_header() {
 clear
@@ -31,65 +36,210 @@ Project management tool from the future
 EOF
 }
 
-function buildLocalImage() {
-    if [ "$1" == "--force-build" ]; then
-        DO_BUILD="1"
-    elif [ "$1" == "--skip-build" ]; then
-        DO_BUILD="2"
-    else 
-        printf "\n" >&2
-        printf "${YELLOW}You are on ${CPU_ARCH} cpu architecture. ${NC}\n" >&2
-        printf "${YELLOW}Since the prebuilt ${CPU_ARCH} compatible docker images are not available for, we will be running the docker build on this system. ${NC} \n" >&2
-        printf "${YELLOW}This might take ${YELLOW}5-30 min based on your system's hardware configuration. \n ${NC} \n" >&2
-        printf "\n" >&2
-        printf "${GREEN}Select an option to proceed: ${NC}\n" >&2
-        printf "   1) Build Fresh Images \n" >&2
-        printf "   2) Skip Building Images \n" >&2
-        printf "   3) Exit \n" >&2
-        printf "\n" >&2
-        read -p "Select Option [1]: " DO_BUILD
-        until [[ -z "$DO_BUILD" || "$DO_BUILD" =~ ^[1-3]$ ]]; do
-            echo "$DO_BUILD: invalid selection." >&2
-            read -p "Select Option [1]: " DO_BUILD
-        done
+function spinner() {
+    local pid=$1
+    local delay=.5
+    local spinstr='|/-\'
+
+    if ! ps -p "$pid" > /dev/null; then  
+        echo "Invalid PID: $pid"  
+        return 1  
+    fi  
+    while ps -p "$pid" > /dev/null; do  
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr" >&2
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b" >&2
+    done
+    printf "    \b\b\b\b" >&2
+}
+
+function checkLatestRelease(){
+    echo "Checking for the latest release..." >&2
+    local latest_release=$(curl -s https://api.github.com/repos/$GH_REPO/releases/latest |  grep -o '"tag_name": "[^"]*"' | sed 's/"tag_name": "//;s/"//g')
+    if [ -z "$latest_release" ]; then
+        echo "Failed to check for the latest release. Exiting..." >&2
+        exit 1
+    fi
+
+    echo $latest_release    
+}
+
+function initialize(){
+    printf "Please wait while we check the availability of Docker images for the selected release ($APP_RELEASE) with ${UPPER_CPU_ARCH} support." >&2
+
+    if [ "$CUSTOM_BUILD" == "true" ]; then
         echo "" >&2
+        echo "" >&2
+        echo "${UPPER_CPU_ARCH} images are not available for selected release ($APP_RELEASE)." >&2
+        echo "build"
+        return 1
     fi
 
-    if [ "$DO_BUILD" == "1" ] || [ "$DO_BUILD" == "" ];
-    then
-        REPO=https://github.com/makeplane/plane.git
-        CURR_DIR=$PWD
-        PLANE_TEMP_CODE_DIR=$(mktemp -d)
-        git clone $REPO $PLANE_TEMP_CODE_DIR  --branch $BRANCH --single-branch
+    local IMAGE_NAME=makeplane/plane-proxy
+    local IMAGE_TAG=${APP_RELEASE}
+    docker manifest inspect "${IMAGE_NAME}:${IMAGE_TAG}" | grep -q "\"architecture\": \"${CPU_ARCH}\"" &
+    local pid=$!
+    spinner "$pid"
+    
+    echo "" >&2
 
-        cp $PLANE_TEMP_CODE_DIR/deploy/selfhost/build.yml $PLANE_TEMP_CODE_DIR/build.yml
+    wait "$pid"
 
-        cd $PLANE_TEMP_CODE_DIR
-        if [ "$BRANCH" == "master" ];
-        then
-            export APP_RELEASE=stable
-        fi
-
-        /bin/bash -c "$COMPOSE_CMD -f build.yml build --no-cache"  >&2
-        # cd $CURR_DIR
-        # rm -rf $PLANE_TEMP_CODE_DIR
-        echo "build_completed"
-    elif [ "$DO_BUILD" == "2" ];
-    then
-        printf "${YELLOW}Build action skipped by you in lieu of using existing images. ${NC} \n" >&2
-        echo "build_skipped"
-    elif [ "$DO_BUILD" == "3" ];
-    then
-        echo "build_exited"
+    if [ $? -eq 0 ]; then
+        echo "Plane supports ${CPU_ARCH}" >&2
+        echo "available"
+        return 0
     else
-        printf "INVALID OPTION SUPPLIED" >&2
+        echo "" >&2
+        echo "" >&2
+        echo "${UPPER_CPU_ARCH} images are not available for selected release ($APP_RELEASE)." >&2
+        echo "" >&2
+        echo "build"
+        return 1
     fi
 }
-function install() {
-    echo "Installing Plane.........."
-    download
+function getEnvValue() {
+    local key=$1
+    local file=$2
+
+    if [ -z "$key" ] || [ -z "$file" ]; then
+        echo "Invalid arguments supplied"
+        exit 1
+    fi
+
+    if [ -f "$file" ]; then
+        grep -q "^$key=" "$file"
+        if [ $? -eq 0 ]; then
+            local value
+            value=$(grep "^$key=" "$file" | cut -d'=' -f2)
+            echo "$value"
+        else
+            echo ""
+        fi
+    fi
 }
+function updateEnvFile() {
+    local key=$1
+    local value=$2
+    local file=$3
+
+    if [ -z "$key" ] || [ -z "$value" ] || [ -z "$file" ]; then
+        echo "Invalid arguments supplied"
+        exit 1
+    fi
+
+    if [ -f "$file" ]; then
+        # check if key exists in the file
+        grep -q "^$key=" "$file"
+        if [ $? -ne 0 ]; then
+            echo "$key=$value" >> "$file"
+            return
+        else 
+            if [ "$OS_NAME" == "Darwin" ]; then
+                value=$(echo "$value" | sed 's/|/\\|/g')
+                sed -i '' "s|^$key=.*|$key=$value|g" "$file"
+            else
+                sed -i "s/^$key=.*/$key=$value/g" "$file"
+            fi
+        fi
+    else
+        echo "File not found: $file"
+        exit 1
+    fi
+}
+
+function updateCustomVariables(){
+    echo "Updating custom variables..." >&2
+    updateEnvFile "DOCKERHUB_USER" "$DOCKERHUB_USER" "$DOCKER_ENV_PATH"
+    updateEnvFile "APP_RELEASE" "$APP_RELEASE" "$DOCKER_ENV_PATH"
+    updateEnvFile "PULL_POLICY" "$PULL_POLICY" "$DOCKER_ENV_PATH"
+    updateEnvFile "CUSTOM_BUILD" "$CUSTOM_BUILD" "$DOCKER_ENV_PATH"
+    echo "Custom variables updated successfully" >&2
+}
+
+function syncEnvFile(){
+    echo "Syncing environment variables..." >&2
+    if [ -f "$PLANE_INSTALL_DIR/plane.env.bak" ]; then
+        updateCustomVariables
+        
+        # READ keys of plane.env and update the values from plane.env.bak
+        while IFS= read -r line
+        do
+            # ignore is the line is empty or starts with #
+            if [ -z "$line" ] || [[ $line == \#* ]]; then
+                continue
+            fi
+            key=$(echo "$line" | cut -d'=' -f1)
+            value=$(getEnvValue "$key" "$PLANE_INSTALL_DIR/plane.env.bak")
+            if [ -n "$value" ]; then
+                updateEnvFile "$key" "$value" "$DOCKER_ENV_PATH"
+            fi
+        done < "$DOCKER_ENV_PATH"
+    fi
+    echo "Environment variables synced successfully" >&2
+}
+
+function buildYourOwnImage(){
+    echo "Building images locally..."
+
+    export DOCKERHUB_USER="myplane"
+    export APP_RELEASE="local"
+    export PULL_POLICY="never"
+    CUSTOM_BUILD="true"
+
+    # checkout the code to ~/tmp/plane folder and build the images
+    local PLANE_TEMP_CODE_DIR=~/tmp/plane
+    rm -rf $PLANE_TEMP_CODE_DIR
+    mkdir -p $PLANE_TEMP_CODE_DIR
+    REPO=https://github.com/$GH_REPO.git
+    git clone "$REPO" "$PLANE_TEMP_CODE_DIR"  --branch "$BRANCH" --single-branch --depth 1
+
+    cp "$PLANE_TEMP_CODE_DIR/deploy/selfhost/build.yml" "$PLANE_TEMP_CODE_DIR/build.yml"
+
+    cd "$PLANE_TEMP_CODE_DIR" || exit
+
+    /bin/bash -c "$COMPOSE_CMD -f build.yml build --no-cache"  >&2
+    if [ $? -ne 0 ]; then
+        echo "Build failed. Exiting..."
+        exit 1
+    fi
+    echo "Build completed successfully"
+    echo ""
+    echo "You can now start the services by running the command: ./setup.sh start"
+    echo ""
+}
+
+function install() {
+    echo "Begin Installing Plane"
+    echo ""
+
+    if [ "$APP_RELEASE" == "stable" ]; then
+        export APP_RELEASE=$(checkLatestRelease)
+    fi
+
+    local build_image=$(initialize)
+
+    if [ "$build_image" == "build" ]; then
+        # ask for confirmation to continue building the images
+        echo "Do you want to continue with building the Docker images locally?"
+        read -p "Continue? [y/N]: " confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Exiting..."
+            exit 0
+        fi
+    fi
+
+    if [ "$build_image" == "build" ]; then
+        download "true"
+    else
+        download "false"
+    fi
+}
+
 function download() {
+    local LOCAL_BUILD=$1
     cd $SCRIPT_DIR
     TS=$(date +%s)
     if [ -f "$PLANE_INSTALL_DIR/docker-compose.yaml" ]
@@ -97,49 +247,94 @@ function download() {
         mv $PLANE_INSTALL_DIR/docker-compose.yaml $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml
     fi
 
-    curl -H 'Cache-Control: no-cache, no-store' -s -o $PLANE_INSTALL_DIR/docker-compose.yaml  https://raw.githubusercontent.com/makeplane/plane/$BRANCH/deploy/selfhost/docker-compose.yml?$(date +%s)
-    curl -H 'Cache-Control: no-cache, no-store' -s -o $PLANE_INSTALL_DIR/variables-upgrade.env https://raw.githubusercontent.com/makeplane/plane/$BRANCH/deploy/selfhost/variables.env?$(date +%s)
+    RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$RELEASE_DOWNLOAD_URL/$APP_RELEASE/docker-compose.yml?$(date +%s)")
+    BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+    STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+    if [ "$STATUS" -eq 200 ]; then
+        echo "$BODY" > $PLANE_INSTALL_DIR/docker-compose.yaml
+    else
+        # Fallback to download from the raw github url
+        RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$FALLBACK_DOWNLOAD_URL/docker-compose.yml?$(date +%s)")
+        BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+        STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+        if [ "$STATUS" -eq 200 ]; then
+            echo "$BODY" > $PLANE_INSTALL_DIR/docker-compose.yaml
+        else
+            echo "Failed to download docker-compose.yml. HTTP Status: $STATUS"
+            echo "URL: $RELEASE_DOWNLOAD_URL/$APP_RELEASE/docker-compose.yml"
+            mv $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml $PLANE_INSTALL_DIR/docker-compose.yaml
+            exit 1
+        fi
+    fi
+
+    RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$RELEASE_DOWNLOAD_URL/$APP_RELEASE/variables.env?$(date +%s)")
+    BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+    STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+    if [ "$STATUS" -eq 200 ]; then
+        echo "$BODY" > $PLANE_INSTALL_DIR/variables-upgrade.env
+    else
+        # Fallback to download from the raw github url
+        RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$FALLBACK_DOWNLOAD_URL/variables.env?$(date +%s)")
+        BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
+        STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+        if [ "$STATUS" -eq 200 ]; then
+            echo "$BODY" > $PLANE_INSTALL_DIR/variables-upgrade.env
+        else
+            echo "Failed to download variables.env. HTTP Status: $STATUS"
+            echo "URL: $RELEASE_DOWNLOAD_URL/$APP_RELEASE/variables.env"
+            mv $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml $PLANE_INSTALL_DIR/docker-compose.yaml
+            exit 1
+        fi
+    fi
 
     if [ -f "$DOCKER_ENV_PATH" ];
     then
-        cp $DOCKER_ENV_PATH $PLANE_INSTALL_DIR/archive/$TS.env
-    else
-        mv $PLANE_INSTALL_DIR/variables-upgrade.env $DOCKER_ENV_PATH
+        cp "$DOCKER_ENV_PATH" "$PLANE_INSTALL_DIR/archive/$TS.env"
+        cp "$DOCKER_ENV_PATH" "$PLANE_INSTALL_DIR/plane.env.bak"
     fi
 
-    if [ "$BRANCH" != "master" ];
-    then
-        cp $PLANE_INSTALL_DIR/docker-compose.yaml $PLANE_INSTALL_DIR/temp.yaml 
-        sed -e 's@${APP_RELEASE:-stable}@'"$BRANCH"'@g' \
-            $PLANE_INSTALL_DIR/temp.yaml > $PLANE_INSTALL_DIR/docker-compose.yaml
+    mv $PLANE_INSTALL_DIR/variables-upgrade.env $DOCKER_ENV_PATH
 
-        rm $PLANE_INSTALL_DIR/temp.yaml
-    fi
+    syncEnvFile
 
-    if [ $USE_GLOBAL_IMAGES == 0 ]; then
-        local res=$(buildLocalImage)
-        # echo $res
+    if [ "$LOCAL_BUILD" == "true" ]; then
+        export DOCKERHUB_USER="myplane"
+        export APP_RELEASE="local"
+        export PULL_POLICY="never"
+        CUSTOM_BUILD="true"
 
-        if [ "$res" == "build_exited" ];
-        then
-            echo
-            echo "Install action cancelled by you. Exiting now."
-            echo
-            exit 0
+        buildYourOwnImage
+
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "Build failed. Exiting..."
+            exit 1
         fi
+        updateCustomVariables
     else
-        /bin/bash -c "$COMPOSE_CMD -f $DOCKER_FILE_PATH --env-file=$DOCKER_ENV_PATH pull"
+        CUSTOM_BUILD="false"
+        updateCustomVariables
+        /bin/bash -c "$COMPOSE_CMD -f $DOCKER_FILE_PATH --env-file=$DOCKER_ENV_PATH pull --policy always"
+
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo "Failed to pull the images. Exiting..."
+            exit 1
+        fi
     fi
     
     echo ""
-    echo "Most recent Stable version is now available for you to use"
+    echo "Most recent version of Plane is now available for you to use"
     echo ""
-    echo "In case of Upgrade, your new setting file is availabe as 'variables-upgrade.env'. Please compare and set the required values in 'plane.env 'file."
+    echo "In case of 'Upgrade', please check the 'plane.env 'file for any new variables and update them accordingly"
     echo ""
-
 }
 function startServices() {
-    /bin/bash -c "$COMPOSE_CMD -f $DOCKER_FILE_PATH --env-file=$DOCKER_ENV_PATH up -d --quiet-pull"
+    /bin/bash -c "$COMPOSE_CMD -f $DOCKER_FILE_PATH --env-file=$DOCKER_ENV_PATH up -d --pull if_not_present --quiet-pull"
 
     local migrator_container_id=$(docker container ls -aq -f "name=$SERVICE_FOLDER-migrator")
     if [ -n "$migrator_container_id" ]; then
@@ -196,12 +391,40 @@ function restartServices() {
     startServices
 }
 function upgrade() {
+    local latest_release=$(checkLatestRelease)
+
+    echo ""
+    echo "Current release: $APP_RELEASE"
+
+    if [ "$latest_release" == "$APP_RELEASE" ]; then
+        echo ""
+        echo "You are already using the latest release"
+        exit 0
+    fi
+
+    echo "Latest release: $latest_release"
+    echo ""
+
+    # Check for confirmation to upgrade
+    echo "Do you want to upgrade to the latest release ($latest_release)?"
+    read -p "Continue? [y/N]: " confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Exiting..."
+        exit 0
+    fi
+
+    export APP_RELEASE=$latest_release
+
+    echo "Upgrading Plane to the latest release..."
+    echo ""
+
     echo "***** STOPPING SERVICES ****"
     stopServices
 
     echo
     echo "***** DOWNLOADING STABLE VERSION ****"
-    download
+    install
 
     echo "***** PLEASE VALIDATE AND START SERVICES ****"
 }
@@ -234,12 +457,13 @@ function viewLogs(){
         echo "   8) Redis"
         echo "   9) Postgres"
         echo "   10) Minio"
+        echo "   11) RabbitMQ"
         echo "   0) Back to Main Menu"
         echo 
         read -p "Service: " DOCKER_SERVICE_NAME
 
-        until (( DOCKER_SERVICE_NAME >= 0 && DOCKER_SERVICE_NAME <= 10 )); do
-            echo "Invalid selection. Please enter a number between 1 and 11."
+        until (( DOCKER_SERVICE_NAME >= 0 && DOCKER_SERVICE_NAME <= 11 )); do
+            echo "Invalid selection. Please enter a number between 0 and 11."
             read -p "Service: " DOCKER_SERVICE_NAME
         done
 
@@ -258,6 +482,7 @@ function viewLogs(){
                 8) viewSpecificLogs "plane-redis";;
                 9) viewSpecificLogs "plane-db";;
                 10) viewSpecificLogs "plane-minio";;
+                11) viewSpecificLogs "plane-mq";;
                 0) askForAction;;
                 *) echo "INVALID SERVICE NAME SUPPLIED";;
             esac
@@ -276,13 +501,13 @@ function viewLogs(){
             redis) viewSpecificLogs "plane-redis";;
             postgres) viewSpecificLogs "plane-db";;
             minio) viewSpecificLogs "plane-minio";;
+            rabbitmq) viewSpecificLogs "plane-mq";;
             *) echo "INVALID SERVICE NAME SUPPLIED";;
         esac
     else
         echo "INVALID SERVICE NAME SUPPLIED"
     fi
 }
-
 function backupSingleVolume() {
     backupFolder=$1
     selectedVolume=$2
@@ -299,16 +524,15 @@ function backupSingleVolume() {
         -v "$backupFolder":/backup \
         busybox sh -c 'tar -czf "/backup/${TAR_NAME}.tar.gz" /${TAR_NAME}'
 }
-
 function backupData() {
     local datetime=$(date +"%Y%m%d-%H%M")
     local BACKUP_FOLDER=$PLANE_INSTALL_DIR/backup/$datetime
     mkdir -p "$BACKUP_FOLDER"
 
-    volumes=$(docker volume ls -f "name=plane-app" --format "{{.Name}}" | grep -E "_pgdata|_redisdata|_uploads")
+    volumes=$(docker volume ls -f "name=$SERVICE_FOLDER" --format "{{.Name}}" | grep -E "_pgdata|_redisdata|_uploads")
     # Check if there are any matching volumes
     if [ -z "$volumes" ]; then
-        echo "No volumes found starting with 'plane-app'"
+        echo "No volumes found starting with '$SERVICE_FOLDER'"
         exit 1
     fi
 
@@ -329,7 +553,7 @@ function askForAction() {
     then
         echo
         echo "Select a Action you want to perform:"
-        echo "   1) Install (${CPU_ARCH})"
+        echo "   1) Install"
         echo "   2) Start"
         echo "   3) Stop"
         echo "   4) Restart"
@@ -351,31 +575,31 @@ function askForAction() {
         echo
     fi
 
-    if [ "$ACTION" == "1" ] || [ "$DEFAULT_ACTION" == "install" ]
+    if [ "$ACTION" == "1" ] || [ "$DEFAULT_ACTION" == "install" ];
     then
         install
-        askForAction
-    elif [ "$ACTION" == "2" ] || [ "$DEFAULT_ACTION" == "start" ]
+        # askForAction
+    elif [ "$ACTION" == "2" ] || [ "$DEFAULT_ACTION" == "start" ];
     then
         startServices
         # askForAction
-    elif [ "$ACTION" == "3" ] || [ "$DEFAULT_ACTION" == "stop" ]
+    elif [ "$ACTION" == "3" ] || [ "$DEFAULT_ACTION" == "stop" ];
     then
         stopServices
         # askForAction
-    elif [ "$ACTION" == "4" ] || [ "$DEFAULT_ACTION" == "restart" ]
+    elif [ "$ACTION" == "4" ] || [ "$DEFAULT_ACTION" == "restart" ];
     then
         restartServices
         # askForAction
-    elif [ "$ACTION" == "5" ]  || [ "$DEFAULT_ACTION" == "upgrade" ]
+    elif [ "$ACTION" == "5" ]  || [ "$DEFAULT_ACTION" == "upgrade" ];
     then
         upgrade
-        askForAction
-    elif [ "$ACTION" == "6" ]  || [ "$DEFAULT_ACTION" == "logs" ]
+        # askForAction
+    elif [ "$ACTION" == "6" ]  || [ "$DEFAULT_ACTION" == "logs" ];
     then
-        viewLogs $@
+        viewLogs "$@"
         askForAction
-    elif [ "$ACTION" == "7" ]  || [ "$DEFAULT_ACTION" == "backup" ]
+    elif [ "$ACTION" == "7" ]  || [ "$DEFAULT_ACTION" == "backup" ];
     then
         backupData
     elif [ "$ACTION" == "8" ]
@@ -394,48 +618,38 @@ else
     COMPOSE_CMD="docker compose"
 fi
 
-# CPU ARCHITECHTURE BASED SETTINGS
-CPU_ARCH=$(uname -m)
-if [[ $FORCE_CPU == "amd64" || $CPU_ARCH == "amd64" || $CPU_ARCH == "x86_64" || ( $BRANCH == "master" && ( $CPU_ARCH == "arm64" || $CPU_ARCH == "aarch64" ) ) ]]; 
-then
-    USE_GLOBAL_IMAGES=1
-    DOCKERHUB_USER=makeplane
-    PULL_POLICY=always
-else
-    USE_GLOBAL_IMAGES=0
-    DOCKERHUB_USER=myplane
-    PULL_POLICY=never
+if [ "$CPU_ARCH" == "x86_64" ] || [ "$CPU_ARCH" == "amd64" ]; then
+    CPU_ARCH="amd64"
+elif [ "$CPU_ARCH" == "aarch64" ] || [ "$CPU_ARCH" == "arm64" ]; then
+    CPU_ARCH="arm64"
 fi
 
-if [ "$BRANCH" == "master" ];
-then
-    export APP_RELEASE=stable
-fi
+if [ -f "$DOCKER_ENV_PATH" ]; then
+    DOCKERHUB_USER=$(getEnvValue "DOCKERHUB_USER" "$DOCKER_ENV_PATH")
+    APP_RELEASE=$(getEnvValue "APP_RELEASE" "$DOCKER_ENV_PATH")
+    PULL_POLICY=$(getEnvValue "PULL_POLICY" "$DOCKER_ENV_PATH")
+    CUSTOM_BUILD=$(getEnvValue "CUSTOM_BUILD" "$DOCKER_ENV_PATH")
 
-# REMOVE SPECIAL CHARACTERS FROM BRANCH NAME
-if [ "$BRANCH" != "master" ];
-then
-    SERVICE_FOLDER=plane-app-$(echo $BRANCH | sed -r 's@(\/|" "|\.)@-@g')
-    PLANE_INSTALL_DIR=$PWD/$SERVICE_FOLDER
-fi
-mkdir -p $PLANE_INSTALL_DIR/archive
+    if [ -z "$DOCKERHUB_USER" ]; then
+        DOCKERHUB_USER=makeplane
+        updateEnvFile "DOCKERHUB_USER" "$DOCKERHUB_USER" "$DOCKER_ENV_PATH"
+    fi
 
-DOCKER_FILE_PATH=$PLANE_INSTALL_DIR/docker-compose.yaml
-DOCKER_ENV_PATH=$PLANE_INSTALL_DIR/plane.env
+    if [ -z "$APP_RELEASE" ]; then
+        APP_RELEASE=stable
+        updateEnvFile "APP_RELEASE" "$APP_RELEASE" "$DOCKER_ENV_PATH"
+    fi
 
-# BACKWARD COMPATIBILITY
-OLD_DOCKER_ENV_PATH=$PLANE_INSTALL_DIR/.env
-if [ -f "$OLD_DOCKER_ENV_PATH" ];
-then
-    mv "$OLD_DOCKER_ENV_PATH" "$DOCKER_ENV_PATH"
-    OS_NAME=$(uname)
-    if [ "$OS_NAME" == "Darwin" ];
-    then
-        sed -i '' -e 's@APP_RELEASE=latest@APP_RELEASE=stable@' "$DOCKER_ENV_PATH" 
-    else
-        sed -i -e 's@APP_RELEASE=latest@APP_RELEASE=stable@' "$DOCKER_ENV_PATH" 
+    if [ -z "$PULL_POLICY" ]; then
+        PULL_POLICY=if_not_present
+        updateEnvFile "PULL_POLICY" "$PULL_POLICY" "$DOCKER_ENV_PATH"
+    fi
+
+    if [ -z "$CUSTOM_BUILD" ]; then
+        CUSTOM_BUILD=false
+        updateEnvFile "CUSTOM_BUILD" "$CUSTOM_BUILD" "$DOCKER_ENV_PATH"
     fi
 fi
 
 print_header
-askForAction $@
+askForAction "$@"

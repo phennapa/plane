@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 // types
+import { EDurationFilters } from "@plane/constants";
 import { TIssuesByPriorityWidgetFilters, TIssuesByPriorityWidgetResponse } from "@plane/types";
 // components
+import { Card } from "@plane/ui";
 import {
   DurationFilterDropdown,
   IssuesByPriorityEmptyState,
@@ -12,7 +14,6 @@ import {
 } from "@/components/dashboard/widgets";
 import { IssuesByPriorityGraph } from "@/components/graphs";
 // constants
-import { EDurationFilters } from "@/constants/dashboard";
 // helpers
 import { getCustomDates } from "@/helpers/dashboard.helper";
 // hooks
@@ -69,8 +70,8 @@ export const IssuesByPriorityWidget: React.FC<WidgetProps> = observer((props) =>
   }));
 
   return (
-    <div className="flex min-h-96 w-full flex-col overflow-hidden rounded-xl border-[0.5px] border-custom-border-200 bg-custom-background-100 py-6 duration-300 hover:shadow-custom-shadow-4xl">
-      <div className="flex items-center justify-between gap-2 pl-7 pr-6">
+    <Card>
+      <div className="flex items-center justify-between gap-2 mb-4">
         <Link
           href={`/${workspaceSlug}/workspace-views/assigned`}
           className="text-lg font-semibold text-custom-text-300 hover:underline"
@@ -106,6 +107,6 @@ export const IssuesByPriorityWidget: React.FC<WidgetProps> = observer((props) =>
           <IssuesByPriorityEmptyState />
         </div>
       )}
-    </div>
+    </Card>
   );
 });

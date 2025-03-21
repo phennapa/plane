@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArchiveRestoreIcon, Check, ExternalLink, LinkIcon, Lock, Settings, Trash2, UserPlus } from "lucide-react";
 // types
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import type { IProject } from "@plane/types";
 // ui
 import {
@@ -23,16 +24,16 @@ import {
 // components
 import { Logo } from "@/components/common";
 import { ArchiveRestoreProjectModal, DeleteProjectModal, JoinProjectModal } from "@/components/project";
-// constants
-import { EUserProjectRoles } from "@/constants/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { renderFormattedDate } from "@/helpers/date-time.helper";
+import { getFileURL } from "@/helpers/file.helper";
 import { copyUrlToClipboard } from "@/helpers/string.helper";
 // hooks
-import { useProject } from "@/hooks/store";
+import { useMember, useProject, useUserPermissions } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 import { usePlatformOS } from "@/hooks/use-platform-os";
+// plane-web constants
 
 type Props = {
   project: IProject;
@@ -50,15 +51,21 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
   const router = useAppRouter();
   const { workspaceSlug } = useParams();
   // store hooks
+  const { getUserDetails } = useMember();
   const { addProjectToFavorites, removeProjectFromFavorites } = useProject();
+  const { allowPermissions } = useUserPermissions();
   // hooks
   const { isMobile } = usePlatformOS();
-  project.member_role;
   // derived values
-  const projectMembersIds = project.members?.map((member) => member.member_id);
+  const projectMembersIds = project.members;
+  const shouldRenderFavorite = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.WORKSPACE
+  );
   // auth
-  const isOwner = project.member_role === EUserProjectRoles.ADMIN;
-  const isMember = project.member_role === EUserProjectRoles.MEMBER;
+  const isMemberOfProject = !!project.member_role;
+  const hasAdminRole = project.member_role === EUserPermissions.ADMIN;
+  const hasMemberRole = project.member_role === EUserPermissions.MEMBER;
   // archive
   const isArchived = !!project.archived_at;
 
@@ -110,24 +117,24 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
   const MENU_ITEMS: TContextMenuItem[] = [
     {
       key: "settings",
-      action: () => router.push(`/${workspaceSlug}/projects/${project.id}/settings`),
+      action: () => router.push(`/${workspaceSlug}/projects/${project.id}/settings`, {}, { showProgressBar: false }),
       title: "Settings",
       icon: Settings,
-      shouldRender: !isArchived && (isOwner || isMember),
+      shouldRender: !isArchived && (hasAdminRole || hasMemberRole),
     },
     {
       key: "join",
       action: () => setJoinProjectModal(true),
       title: "Join",
       icon: UserPlus,
-      shouldRender: !project.is_member && !isArchived,
+      shouldRender: !isMemberOfProject && !isArchived,
     },
     {
       key: "open-new-tab",
       action: handleOpenInNewTab,
       title: "Open in new tab",
       icon: ExternalLink,
-      shouldRender: project.is_member && !isArchived,
+      shouldRender: !isMemberOfProject && !isArchived,
     },
     {
       key: "copy-link",
@@ -141,14 +148,14 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
       action: () => setRestoreProject(true),
       title: "Restore",
       icon: ArchiveRestoreIcon,
-      shouldRender: isArchived && isOwner,
+      shouldRender: isArchived && hasAdminRole,
     },
     {
       key: "delete",
       action: () => setDeleteProjectModal(true),
       title: "Delete",
       icon: Trash2,
-      shouldRender: isArchived && isOwner,
+      shouldRender: isArchived && hasAdminRole,
     },
   ];
 
@@ -183,13 +190,13 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
         ref={projectCardRef}
         href={`/${workspaceSlug}/projects/${project.id}/issues`}
         onClick={(e) => {
-          if (!project.is_member || isArchived) {
+          if (!isMemberOfProject || isArchived) {
             e.preventDefault();
             e.stopPropagation();
             if (!isArchived) setJoinProjectModal(true);
           }
         }}
-        data-prevent-nprogress={!project.is_member || isArchived}
+        data-prevent-nprogress={!isMemberOfProject || isArchived}
         className="flex flex-col rounded border border-custom-border-200 bg-custom-background-100"
       >
         <ContextMenu parentRef={projectCardRef} items={MENU_ITEMS} />
@@ -197,17 +204,17 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
           <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/60 to-transparent" />
 
           <img
-            src={
-              project.cover_image ??
-              "https://images.unsplash.com/photo-1672243775941-10d763d9adef?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80"
-            }
+            src={getFileURL(
+              project.cover_image_url ??
+                "https://images.unsplash.com/photo-1672243775941-10d763d9adef?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80"
+            )}
             alt={project.name}
             className="absolute left-0 top-0 h-full w-full rounded-t object-cover"
           />
 
           <div className="absolute bottom-4 z-[1] flex h-10 w-full items-center justify-between gap-3 px-4">
             <div className="flex flex-grow items-center gap-2.5 truncate">
-              <div className="h-9 w-9 flex-shrink-0 grid place-items-center rounded bg-white/90">
+              <div className="h-9 w-9 flex-shrink-0 grid place-items-center rounded bg-white/10">
                 <Logo logo={project.logo_props} size={18} />
               </div>
 
@@ -232,19 +239,21 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
                 >
                   <LinkIcon className="h-3 w-3 text-white" />
                 </button>
-                <FavoriteStar
-                  buttonClassName="h-6 w-6 bg-white/10"
-                  iconClassName={cn("h-3 w-3", {
-                    "text-white": !project.is_favorite,
-                  })}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (project.is_favorite) handleRemoveFromFavorites();
-                    else handleAddToFavorites();
-                  }}
-                  selected={project.is_favorite}
-                />
+                {shouldRenderFavorite && (
+                  <FavoriteStar
+                    buttonClassName="h-6 w-6 bg-white/10 rounded"
+                    iconClassName={cn("h-3 w-3", {
+                      "text-white": !project.is_favorite,
+                    })}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (project.is_favorite) handleRemoveFromFavorites();
+                      else handleAddToFavorites();
+                    }}
+                    selected={!!project.is_favorite}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -274,10 +283,10 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
                   <div className="flex cursor-pointer items-center gap-2 text-custom-text-200">
                     <AvatarGroup showTooltip={false}>
                       {projectMembersIds.map((memberId) => {
-                        const member = project.members?.find((m) => m.member_id === memberId);
+                        const member = getUserDetails(memberId);
                         if (!member) return null;
                         return (
-                          <Avatar key={member.id} name={member.member__display_name} src={member.member__avatar} />
+                          <Avatar key={member.id} name={member.display_name} src={getFileURL(member.avatar_url)} />
                         );
                       })}
                     </AvatarGroup>
@@ -289,7 +298,7 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
               {isArchived && <div className="text-xs text-custom-text-400 font-medium">Archived</div>}
             </div>
             {isArchived ? (
-              isOwner && (
+              hasAdminRole && (
                 <div className="flex items-center justify-center gap-2">
                   <div
                     className="flex items-center justify-center text-xs text-custom-text-400 font-medium hover:text-custom-text-200"
@@ -318,8 +327,8 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
               )
             ) : (
               <>
-                {project.is_member &&
-                  (isOwner || isMember ? (
+                {isMemberOfProject &&
+                  (hasAdminRole || hasMemberRole ? (
                     <Link
                       className="flex items-center justify-center rounded p-1 text-custom-text-400 hover:bg-custom-background-80 hover:text-custom-text-200"
                       onClick={(e) => {
@@ -335,7 +344,7 @@ export const ProjectCard: React.FC<Props> = observer((props) => {
                       Joined
                     </span>
                   ))}
-                {!project.is_member && (
+                {!isMemberOfProject && (
                   <div className="flex items-center">
                     <Button
                       variant="link-primary"

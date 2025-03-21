@@ -4,12 +4,13 @@ import sortBy from "lodash/sortBy";
 import { Combobox } from "@headlessui/react";
 // popper-js
 import { usePopper } from "react-popper";
+// plane helpers
+import { useOutsideClickDetector } from "@plane/hooks";
 // components
 import { DropdownButton } from "./common";
 import { DropdownOptions } from "./common/options";
 // hooks
 import { useDropdownKeyPressed } from "../hooks/use-dropdown-key-pressed";
-import useOutsideClickDetector from "../hooks/use-outside-click-detector";
 // helper
 import { cn } from "../../helpers";
 // types
@@ -104,13 +105,12 @@ export const Dropdown: FC<ISingleSelectDropdown> = (props) => {
       (option) => !(value ?? []).includes(option.data[option.value]),
       () => sortByKey && sortByKey.toLowerCase(),
     ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, options]);
 
   // hooks
   const handleKeyDown = useDropdownKeyPressed(toggleDropdown, handleClose);
 
-  useOutsideClickDetector(dropdownRef, handleClose);
+  useOutsideClickDetector(dropdownRef, handleClose, true);
 
   return (
     <Combobox

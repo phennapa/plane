@@ -19,12 +19,12 @@ import {
   SignalMediumIcon,
   MessageSquareIcon,
   UsersIcon,
-  Inbox,
 } from "lucide-react";
 import { IIssueActivity } from "@plane/types";
-import { Tooltip, BlockedIcon, BlockerIcon, RelatedIcon, LayersIcon, DiceIcon } from "@plane/ui";
+import { Tooltip, BlockedIcon, BlockerIcon, RelatedIcon, LayersIcon, DiceIcon, Intake } from "@plane/ui";
 // helpers
 import { renderFormattedDate } from "@/helpers/date-time.helper";
+import { generateWorkItemLink } from "@/helpers/issue.helper";
 import { capitalizeFirstLetter } from "@/helpers/string.helper";
 import { useLabel } from "@/hooks/store";
 import { usePlatformOS } from "@/hooks/use-platform-os";
@@ -35,17 +35,23 @@ export const IssueLink = ({ activity }: { activity: IIssueActivity }) => {
   const { workspaceSlug } = useParams();
   const { isMobile } = usePlatformOS();
 
+  const workItemLink = generateWorkItemLink({
+    workspaceSlug: workspaceSlug?.toString() ?? activity.workspace_detail?.slug,
+    projectId: activity?.project,
+    issueId: activity?.issue,
+    projectIdentifier: activity?.project_detail?.identifier,
+    sequenceId: activity?.issue_detail?.sequence_id,
+  });
+
   return (
     <Tooltip
-      tooltipContent={activity?.issue_detail ? activity.issue_detail.name : "This issue has been deleted"}
+      tooltipContent={activity?.issue_detail ? activity.issue_detail.name : "This work item has been deleted"}
       isMobile={isMobile}
     >
       {activity?.issue_detail ? (
         <a
           aria-disabled={activity.issue === null}
-          href={`${`/${workspaceSlug ?? activity.workspace_detail?.slug}/projects/${activity.project}/issues/${
-            activity.issue
-          }`}`}
+          href={workItemLink}
           target={activity.issue === null ? "_self" : "_blank"}
           rel={activity.issue === null ? "" : "noopener noreferrer"}
           className="inline items-center gap-1 font-medium text-custom-text-100 hover:underline"
@@ -55,7 +61,7 @@ export const IssueLink = ({ activity }: { activity: IIssueActivity }) => {
         </a>
       ) : (
         <span className="inline-flex items-center gap-1 font-medium text-custom-text-100 whitespace-nowrap">
-          {" an Issue"}{" "}
+          {" a work item"}{" "}
         </span>
       )}
     </Tooltip>
@@ -101,20 +107,20 @@ const LabelPill = observer(({ labelId, workspaceSlug }: { labelId: string; works
 
 const inboxActivityMessage = {
   declined: {
-    showIssue: "declined issue",
-    noIssue: "declined this issue from inbox.",
+    showIssue: "declined work item",
+    noIssue: "declined this work item from intake.",
   },
   snoozed: {
-    showIssue: "snoozed issue",
-    noIssue: "snoozed this issue.",
+    showIssue: "snoozed work item",
+    noIssue: "snoozed this work item.",
   },
   accepted: {
-    showIssue: "accepted issue",
-    noIssue: "accepted this issue from inbox.",
+    showIssue: "accepted work item",
+    noIssue: "accepted this work item from intake.",
   },
   markedDuplicate: {
-    showIssue: "declined issue",
-    noIssue: "declined this issue from inbox by marking a duplicate issue.",
+    showIssue: "declined work item",
+    noIssue: "declined this work item from intake by marking a duplicate work item.",
   },
 };
 
@@ -129,7 +135,7 @@ const getInboxUserActivityMessage = (activity: IIssueActivity, showIssue: boolea
     case "2":
       return showIssue ? inboxActivityMessage.markedDuplicate.showIssue : inboxActivityMessage.markedDuplicate.noIssue;
     default:
-      return "updated inbox issue status.";
+      return "updated intake work item status.";
   }
 };
 
@@ -166,7 +172,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <Users2Icon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <Users2Icon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   archived_at: {
     message: (activity) => {
@@ -183,7 +189,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <ArchiveIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <ArchiveIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   attachment: {
     message: (activity, showIssue) => {
@@ -220,7 +226,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <PaperclipIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <PaperclipIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   description: {
     message: (activity, showIssue) => (
@@ -234,7 +240,7 @@ const activityDetails: {
         )}
       </>
     ),
-    icon: <MessageSquareIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <MessageSquareIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   estimate_point: {
     message: (activity, showIssue) => {
@@ -263,7 +269,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <TriangleIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <TriangleIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   issue: {
     message: (activity) => {
@@ -280,7 +286,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <LayersIcon width={12} height={12} color="#6b7280" aria-hidden="true" />,
+    icon: <LayersIcon width={12} height={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   labels: {
     message: (activity, showIssue, workspaceSlug) => {
@@ -321,7 +327,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <TagIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <TagIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   link: {
     message: (activity, showIssue) => {
@@ -386,7 +392,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <Link2Icon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <Link2Icon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   cycles: {
     message: (activity, showIssue, workspaceSlug) => {
@@ -394,7 +400,7 @@ const activityDetails: {
         return (
           <>
             <span className="flex-shrink-0">
-              added {showIssue ? <IssueLink activity={activity} /> : "this issue"}{" "}
+              added {showIssue ? <IssueLink activity={activity} /> : "this work item"}{" "}
               <span className="whitespace-nowrap">to the cycle</span>{" "}
             </span>
             <a
@@ -436,14 +442,14 @@ const activityDetails: {
           </>
         );
     },
-    icon: <ContrastIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <ContrastIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   modules: {
     message: (activity, showIssue, workspaceSlug) => {
       if (activity.verb === "created")
         return (
           <>
-            added {showIssue ? <IssueLink activity={activity} /> : "this issue"} to the module{" "}
+            added {showIssue ? <IssueLink activity={activity} /> : "this work item"} to the module{" "}
             <a
               href={`/${workspaceSlug}/projects/${activity.project}/modules/${activity.new_identifier}`}
               target="_blank"
@@ -483,7 +489,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <DiceIcon className="h-3 w-3 !text-[#6b7280]" aria-hidden="true" />,
+    icon: <DiceIcon className="h-3 w-3 !text-custom-text-200" aria-hidden="true" />,
   },
   name: {
     message: (activity, showIssue) => (
@@ -497,7 +503,7 @@ const activityDetails: {
         )}
       </>
     ),
-    icon: <MessageSquareIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <MessageSquareIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   parent: {
     message: (activity, showIssue) => {
@@ -528,7 +534,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <UsersIcon className="h-3 w-3 !text-[#6b7280]" aria-hidden="true" />,
+    icon: <UsersIcon className="h-3 w-3 !text-custom-text-200" aria-hidden="true" />,
   },
   priority: {
     message: (activity, showIssue) => (
@@ -545,14 +551,14 @@ const activityDetails: {
         )}
       </>
     ),
-    icon: <SignalMediumIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <SignalMediumIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   relates_to: {
     message: (activity, showIssue) => {
       if (activity.old_value === "")
         return (
           <>
-            marked that {showIssue ? <IssueLink activity={activity} /> : "this issue"} relates to{" "}
+            marked that {showIssue ? <IssueLink activity={activity} /> : "this work item"} relates to{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.new_value}</span>.
           </>
         );
@@ -564,64 +570,64 @@ const activityDetails: {
           </>
         );
     },
-    icon: <RelatedIcon height="12" width="12" color="#6b7280" />,
+    icon: <RelatedIcon height="12" width="12" className="text-custom-text-200" />,
   },
   blocking: {
     message: (activity, showIssue) => {
       if (activity.old_value === "")
         return (
           <>
-            marked {showIssue ? <IssueLink activity={activity} /> : "this issue"} is blocking issue{" "}
+            marked {showIssue ? <IssueLink activity={activity} /> : "this work item"} is blocking work item{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.new_value}</span>.
           </>
         );
       else
         return (
           <>
-            removed the blocking issue{" "}
+            removed the blocking work item{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.old_value}</span>.
           </>
         );
     },
-    icon: <BlockerIcon height="12" width="12" color="#6b7280" />,
+    icon: <BlockerIcon height="12" width="12" className="text-custom-text-200" />,
   },
   blocked_by: {
     message: (activity, showIssue) => {
       if (activity.old_value === "")
         return (
           <>
-            marked {showIssue ? <IssueLink activity={activity} /> : "this issue"} is being blocked by{" "}
+            marked {showIssue ? <IssueLink activity={activity} /> : "this work item"} is being blocked by{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.new_value}</span>.
           </>
         );
       else
         return (
           <>
-            removed {showIssue ? <IssueLink activity={activity} /> : "this issue"} being blocked by issue{" "}
+            removed {showIssue ? <IssueLink activity={activity} /> : "this work item"} being blocked by work item{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.old_value}</span>.
           </>
         );
     },
-    icon: <BlockedIcon height="12" width="12" color="#6b7280" />,
+    icon: <BlockedIcon height="12" width="12" className="text-custom-text-200" />,
   },
   duplicate: {
     message: (activity, showIssue) => {
       if (activity.old_value === "")
         return (
           <>
-            marked {showIssue ? <IssueLink activity={activity} /> : "this issue"} as duplicate of{" "}
+            marked {showIssue ? <IssueLink activity={activity} /> : "this work item"} as duplicate of{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.new_value}</span>.
           </>
         );
       else
         return (
           <>
-            removed {showIssue ? <IssueLink activity={activity} /> : "this issue"} as a duplicate of{" "}
+            removed {showIssue ? <IssueLink activity={activity} /> : "this work item"} as a duplicate of{" "}
             <span className="font-medium text-custom-text-100 whitespace-nowrap">{activity.old_value}</span>.
           </>
         );
     },
-    icon: <CopyPlus size={12} color="#6b7280" />,
+    icon: <CopyPlus size={12} className="text-custom-text-200" />,
   },
   state: {
     message: (activity, showIssue) => (
@@ -635,7 +641,7 @@ const activityDetails: {
         )}
       </>
     ),
-    icon: <LayoutGridIcon size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <LayoutGridIcon size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   start_date: {
     message: (activity, showIssue) => {
@@ -667,7 +673,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <Calendar size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <Calendar size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   target_date: {
     message: (activity, showIssue) => {
@@ -698,7 +704,7 @@ const activityDetails: {
           </>
         );
     },
-    icon: <Calendar size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <Calendar size={12} className="text-custom-text-200" aria-hidden="true" />,
   },
   inbox: {
     message: (activity, showIssue) => (
@@ -710,10 +716,10 @@ const activityDetails: {
             <IssueLink activity={activity} />
           </>
         )}
-        {activity.verb === "2" && ` from inbox by marking a duplicate issue.`}
+        {activity.verb === "2" && ` from intake by marking a duplicate work item.`}
       </>
     ),
-    icon: <Inbox size={12} color="#6b7280" aria-hidden="true" />,
+    icon: <Intake className="size-3 text-custom-text-200" aria-hidden="true" />,
   },
 };
 
@@ -735,7 +741,7 @@ export const ActivityMessage = ({ activity, showIssue = false }: ActivityMessage
       {activityDetails[activity.field as keyof typeof activityDetails]?.message(
         activity,
         showIssue,
-        workspaceSlug ? workspaceSlug.toString() : activity.workspace_detail?.slug ?? ""
+        workspaceSlug ? workspaceSlug.toString() : (activity.workspace_detail?.slug ?? "")
       )}
     </>
   );

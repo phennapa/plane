@@ -1,4 +1,4 @@
-import { EUserProjectRoles } from "@/constants/project";
+import { EUserProjectRoles } from "@plane/constants";
 import type {
   IProjectViewProps,
   IUser,
@@ -9,54 +9,71 @@ import type {
   TLogoProps,
   TStateGroups,
 } from "..";
+import { TUserPermissions } from "../enums";
 
-export interface IProject {
-  archive_in: number;
+export interface IPartialProject {
+  id: string;
+  name: string;
+  identifier: string;
+  sort_order: number | null;
+  logo_props: TLogoProps;
+  member_role?: TUserPermissions | EUserProjectRoles | null;
   archived_at: string | null;
-  archived_issues: number;
-  archived_sub_issues: number;
-  close_in: number;
-  created_at: Date;
-  created_by: string;
-  cover_image: string | null;
+  workspace: IWorkspace | string;
   cycle_view: boolean;
   issue_views_view: boolean;
   module_view: boolean;
   page_view: boolean;
   inbox_view: boolean;
-  default_assignee: IUser | string | null;
-  default_state: string | null;
-  description: string;
-  draft_issues: number;
-  draft_sub_issues: number;
-  estimate: string | null;
-  id: string;
-  identifier: string;
-  anchor: string | null;
-  is_favorite: boolean;
-  is_member: boolean;
-  logo_props: TLogoProps;
-  member_role: EUserProjectRoles | null;
-  members: IProjectMemberLite[];
-  name: string;
-  network: number;
-  project_lead: IUserLite | string | null;
-  sort_order: number | null;
-  sub_issues: number;
-  total_cycles: number;
-  total_issues: number;
-  total_members: number;
-  total_modules: number;
-  updated_at: Date;
-  updated_by: string;
-  workspace: IWorkspace | string;
-  workspace_detail: IWorkspaceLite;
+  project_lead?: IUserLite | string | null;
+  // Timestamps
+  created_at?: Date;
+  updated_at?: Date;
+  // actor
+  created_by?: string;
+  updated_by?: string;
 }
+
+export interface IProject extends IPartialProject {
+  archive_in?: number;
+  close_in?: number;
+  // only for uploading the cover image
+  cover_image_asset?: null;
+  cover_image?: string;
+  // only for rendering the cover image
+  readonly cover_image_url?: string;
+  default_assignee?: IUser | string | null;
+  default_state?: string | null;
+  description?: string;
+  estimate?: string | null;
+  guest_view_all_features?: boolean;
+  anchor?: string | null;
+  is_favorite?: boolean;
+  is_issue_type_enabled?: boolean;
+  is_time_tracking_enabled?: boolean;
+  members?: string[];
+  network?: number;
+  timezone?: string;
+}
+
+export type TProjectAnalyticsCountParams = {
+  project_ids?: string;
+  fields?: string;
+};
+
+export type TProjectAnalyticsCount = Pick<IProject, "id"> & {
+  total_issues?: number;
+  completed_issues?: number;
+  total_cycles?: number;
+  total_members?: number;
+  total_modules?: number;
+};
 
 export interface IProjectLite {
   id: string;
   name: string;
   identifier: string;
+  logo_props: TLogoProps;
 }
 
 type ProjectPreferences = {
@@ -71,7 +88,7 @@ export interface IProjectMap {
 
 export interface IProjectMemberLite {
   id: string;
-  member__avatar: string;
+  member__avatar_url: string;
   member__display_name: string;
   member_id: string;
 }
@@ -82,7 +99,7 @@ export interface IProjectMember {
   project: IProjectLite;
   workspace: IWorkspaceLite;
   comment: string;
-  role: EUserProjectRoles;
+  role: TUserPermissions;
 
   preferences: ProjectPreferences;
 
@@ -98,11 +115,11 @@ export interface IProjectMember {
 export interface IProjectMembership {
   id: string;
   member: string;
-  role: EUserProjectRoles;
+  role: TUserPermissions;
 }
 
 export interface IProjectBulkAddFormData {
-  members: { role: EUserProjectRoles; member_id: string }[];
+  members: { role: TUserPermissions | EUserProjectRoles; member_id: string }[];
 }
 
 export interface IGithubRepository {
@@ -127,6 +144,7 @@ export type TProjectIssuesSearchParams = {
   issue_id?: string;
   workspace_search: boolean;
   target_date?: string;
+  epic?: boolean;
 };
 
 export interface ISearchIssueResponse {
@@ -141,4 +159,5 @@ export interface ISearchIssueResponse {
   state__group: TStateGroups;
   state__name: string;
   workspace__slug: string;
+  type_id: string;
 }

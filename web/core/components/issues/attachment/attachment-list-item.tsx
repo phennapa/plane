@@ -1,44 +1,46 @@
 "use client";
 
-import { FC, useState } from "react";
+import { FC } from "react";
 import { observer } from "mobx-react";
 import { Trash } from "lucide-react";
+import { EIssueServiceType } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
+import { TIssueServiceType } from "@plane/types";
 // ui
 import { CustomMenu, Tooltip } from "@plane/ui";
 // components
 import { ButtonAvatars } from "@/components/dropdowns/member/avatar";
 import { getFileIcon } from "@/components/icons";
-import { IssueAttachmentDeleteModal } from "@/components/issues";
 // helpers
 import { convertBytesToSize, getFileExtension, getFileName } from "@/helpers/attachment.helper";
 import { renderFormattedDate } from "@/helpers/date-time.helper";
+import { getFileURL } from "@/helpers/file.helper";
 // hooks
 import { useIssueDetail, useMember } from "@/hooks/store";
 import { usePlatformOS } from "@/hooks/use-platform-os";
-// types
-import { TAttachmentOperations } from "./root";
-
-type TAttachmentOperationsRemoveModal = Exclude<TAttachmentOperations, "create">;
 
 type TIssueAttachmentsListItem = {
   attachmentId: string;
-  handleAttachmentOperations: TAttachmentOperationsRemoveModal;
   disabled?: boolean;
+  issueServiceType?: TIssueServiceType;
 };
 
 export const IssueAttachmentsListItem: FC<TIssueAttachmentsListItem> = observer((props) => {
+  const { t } = useTranslation();
   // props
-  const { attachmentId, handleAttachmentOperations, disabled } = props;
+  const { attachmentId, disabled, issueServiceType = EIssueServiceType.ISSUES } = props;
   // store hooks
   const { getUserDetails } = useMember();
   const {
     attachment: { getAttachmentById },
-  } = useIssueDetail();
-  // state
-  const [isDeleteIssueAttachmentModalOpen, setIsDeleteIssueAttachmentModalOpen] = useState(false);
-
+    toggleDeleteAttachmentModal,
+  } = useIssueDetail(issueServiceType);
   // derived values
   const attachment = attachmentId ? getAttachmentById(attachmentId) : undefined;
+  const fileName = getFileName(attachment?.attributes.name ?? "");
+  const fileExtension = getFileExtension(attachment?.asset_url ?? "");
+  const fileIcon = getFileIcon(fileExtension, 18);
+  const fileURL = getFileURL(attachment?.asset_url ?? "");
   // hooks
   const { isMobile } = usePlatformOS();
 
@@ -46,61 +48,50 @@ export const IssueAttachmentsListItem: FC<TIssueAttachmentsListItem> = observer(
 
   return (
     <>
-      {isDeleteIssueAttachmentModalOpen && (
-        <IssueAttachmentDeleteModal
-          isOpen={isDeleteIssueAttachmentModalOpen}
-          onClose={() => setIsDeleteIssueAttachmentModalOpen(false)}
-          handleAttachmentOperations={handleAttachmentOperations}
-          data={attachment}
-        />
-      )}
       <button
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          window.open(attachment.asset, "_blank");
+          window.open(fileURL, "_blank");
         }}
       >
         <div className="group flex items-center justify-between gap-3 h-11 hover:bg-custom-background-90 pl-9 pr-2">
           <div className="flex items-center gap-3 text-sm truncate">
-            <div className="flex items-center gap-3  ">{getFileIcon(getFileExtension(attachment.asset), 18)}</div>
-            <Tooltip
-              tooltipContent={`${getFileName(attachment.attributes.name)}.${getFileExtension(attachment.asset)}`}
-              isMobile={isMobile}
-            >
-              <p className="text-custom-text-200 font-medium truncate">{`${getFileName(attachment.attributes.name)}.${getFileExtension(attachment.asset)}`}</p>
+            <div className="flex items-center gap-3">{fileIcon}</div>
+            <Tooltip tooltipContent={`${fileName}.${fileExtension}`} isMobile={isMobile}>
+              <p className="text-custom-text-200 font-medium truncate">{`${fileName}.${fileExtension}`}</p>
             </Tooltip>
             <span className="flex size-1.5 bg-custom-background-80 rounded-full" />
             <span className="flex-shrink-0 text-custom-text-400">{convertBytesToSize(attachment.attributes.size)}</span>
           </div>
 
           <div className="flex items-center gap-3">
-            {attachment?.updated_by && (
+            {attachment?.created_by && (
               <>
                 <Tooltip
                   isMobile={isMobile}
                   tooltipContent={`${
-                    getUserDetails(attachment.updated_by)?.display_name ?? ""
+                    getUserDetails(attachment?.created_by)?.display_name ?? ""
                   } uploaded on ${renderFormattedDate(attachment.updated_at)}`}
                 >
                   <div className="flex items-center justify-center">
-                    <ButtonAvatars showTooltip userIds={attachment?.updated_by} />
+                    <ButtonAvatars showTooltip userIds={attachment?.created_by} />
                   </div>
                 </Tooltip>
               </>
             )}
 
-            <CustomMenu ellipsis closeOnSelect placement="bottom-end" openOnHover disabled={disabled}>
+            <CustomMenu ellipsis closeOnSelect placement="bottom-end" disabled={disabled}>
               <CustomMenu.MenuItem
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setIsDeleteIssueAttachmentModalOpen(true);
+                  toggleDeleteAttachmentModal(attachmentId);
                 }}
               >
                 <div className="flex items-center gap-2">
                   <Trash className="h-3.5 w-3.5" strokeWidth={2} />
-                  <span>Delete</span>
+                  <span>{t("common.actions.delete")}</span>
                 </div>
               </CustomMenu.MenuItem>
             </CustomMenu>

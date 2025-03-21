@@ -23,14 +23,14 @@ export const IssueCycleActivity: FC<TIssueCycleActivity> = observer((props) => {
   if (!activity) return <></>;
   return (
     <IssueActivityBlockComponent
-      icon={<ContrastIcon className="h-4 w-4 flex-shrink-0 text-[#6b7280]" />}
+      icon={<ContrastIcon className="h-4 w-4 flex-shrink-0 text-custom-text-200" />}
       activityId={activityId}
       ends={ends}
     >
       <>
         {activity.verb === "created" ? (
           <>
-            <span>added this issue to the cycle </span>
+            <span>added this work item to the cycle </span>
             <a
               href={`/${activity.workspace_detail?.slug}/projects/${activity.project}/cycles/${activity.new_identifier}`}
               target="_blank"
@@ -54,7 +54,7 @@ export const IssueCycleActivity: FC<TIssueCycleActivity> = observer((props) => {
           </>
         ) : (
           <>
-            <span>removed the issue from the cycle </span>
+            <span>removed the work item from the cycle </span>
             <a
               href={`/${activity.workspace_detail?.slug}/projects/${activity.project}/cycles/${activity.old_identifier}`}
               target="_blank"

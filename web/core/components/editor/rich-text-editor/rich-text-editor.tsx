@@ -1,57 +1,65 @@
 import React, { forwardRef } from "react";
-// editor
-import { EditorRefApi, IRichTextEditor, RichTextEditorWithRef } from "@plane/editor";
-// types
-import { IUserLite } from "@plane/types";
+// plane imports
+import { EditorRefApi, IRichTextEditor, RichTextEditorWithRef, TFileHandler } from "@plane/editor";
+import { MakeOptional, TSearchEntityRequestPayload, TSearchResponse } from "@plane/types";
+// components
+import { EditorMentionsRoot } from "@/components/editor";
 // helpers
 import { cn } from "@/helpers/common.helper";
 // hooks
-import { useMember, useMention, useUser } from "@/hooks/store";
-// services
-import { FileService } from "@/services/file.service";
+import { useEditorConfig, useEditorMention } from "@/hooks/editor";
+// plane web hooks
+import { useEditorFlagging } from "@/plane-web/hooks/use-editor-flagging";
 
-interface RichTextEditorWrapperProps extends Omit<IRichTextEditor, "fileHandler" | "mentionHandler"> {
+interface RichTextEditorWrapperProps
+  extends MakeOptional<Omit<IRichTextEditor, "fileHandler" | "mentionHandler">, "disabledExtensions"> {
+  searchMentionCallback: (payload: TSearchEntityRequestPayload) => Promise<TSearchResponse>;
   workspaceSlug: string;
   workspaceId: string;
-  projectId: string;
+  projectId?: string;
+  uploadFile: TFileHandler["upload"];
 }
 
-const fileService = new FileService();
-
 export const RichTextEditor = forwardRef<EditorRefApi, RichTextEditorWrapperProps>((props, ref) => {
-  const { containerClassName, workspaceSlug, workspaceId, projectId, ...rest } = props;
-  // store hooks
-  const { data: currentUser } = useUser();
   const {
-    getUserDetails,
-    project: { getProjectMemberIds },
-  } = useMember();
-  // derived values
-  const projectMemberIds = getProjectMemberIds(projectId);
-  const projectMemberDetails = projectMemberIds?.map((id) => getUserDetails(id) as IUserLite);
-  // use-mention
-  const { mentionHighlights, mentionSuggestions } = useMention({
+    containerClassName,
     workspaceSlug,
+    workspaceId,
     projectId,
-    members: projectMemberDetails,
-    user: currentUser ?? undefined,
+    searchMentionCallback,
+    uploadFile,
+    disabledExtensions: additionalDisabledExtensions,
+    ...rest
+  } = props;
+  // editor flaggings
+  const { richTextEditor: disabledExtensions } = useEditorFlagging(workspaceSlug?.toString());
+  // use editor mention
+  const { fetchMentions } = useEditorMention({
+    searchEntity: async (payload) => await searchMentionCallback(payload),
   });
+  // editor config
+  const { getEditorFileHandlers } = useEditorConfig();
 
   return (
     <RichTextEditorWithRef
       ref={ref}
-      fileHandler={{
-        upload: fileService.getUploadFileFunction(workspaceSlug),
-        delete: fileService.getDeleteImageFunction(workspaceId),
-        restore: fileService.getRestoreImageFunction(workspaceId),
-        cancel: fileService.cancelUpload,
-      }}
+      disabledExtensions={[...disabledExtensions, ...(additionalDisabledExtensions ?? [])]}
+      fileHandler={getEditorFileHandlers({
+        projectId,
+        uploadFile,
+        workspaceId,
+        workspaceSlug,
+      })}
       mentionHandler={{
-        highlights: mentionHighlights,
-        suggestions: mentionSuggestions,
+        searchCallback: async (query) => {
+          const res = await fetchMentions(query);
+          if (!res) throw new Error("Failed in fetching mentions");
+          return res;
+        },
+        renderComponent: (props) => <EditorMentionsRoot {...props} />,
       }}
       {...rest}
-      containerClassName={cn("relative pl-3", containerClassName)}
+      containerClassName={cn("relative pl-3 pb-3", containerClassName)}
     />
   );
 });

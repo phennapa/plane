@@ -1,50 +1,51 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { FC, useEffect, useRef } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import useSWR from "swr";
 // icons
 import { ChevronDown, Pencil } from "lucide-react";
 // headless ui
 import { Disclosure, Transition } from "@headlessui/react";
+// plane helpers
+import { useOutsideClickDetector } from "@plane/hooks";
+// types
+import { useTranslation } from "@plane/i18n";
+import { IUserProfileProjectSegregation } from "@plane/types";
 // plane ui
 import { Loader, Tooltip } from "@plane/ui";
 // components
 import { Logo } from "@/components/common";
-// fetch-keys
-import { USER_PROFILE_PROJECT_SEGREGATION } from "@/constants/fetch-keys";
 // helpers
+import { cn } from "@/helpers/common.helper";
 import { renderFormattedDate } from "@/helpers/date-time.helper";
+import { getFileURL } from "@/helpers/file.helper";
 // hooks
 import { useAppTheme, useProject, useUser } from "@/hooks/store";
-import useOutsideClickDetector from "@/hooks/use-outside-click-detector";
 import { usePlatformOS } from "@/hooks/use-platform-os";
-// services
-import { UserService } from "@/services/user.service";
 // components
 import { ProfileSidebarTime } from "./time";
 
-// services
-const userService = new UserService();
+type TProfileSidebar = {
+  userProjectsData: IUserProfileProjectSegregation | undefined;
+  className?: string;
+};
 
-export const ProfileSidebar = observer(() => {
+export const ProfileSidebar: FC<TProfileSidebar> = observer((props) => {
+  const { userProjectsData, className = "" } = props;
   // refs
   const ref = useRef<HTMLDivElement>(null);
   // router
-  const { workspaceSlug, userId } = useParams();
+  const { userId } = useParams();
   // store hooks
   const { data: currentUser } = useUser();
   const { profileSidebarCollapsed, toggleProfileSidebar } = useAppTheme();
   const { getProjectById } = useProject();
   const { isMobile } = usePlatformOS();
-  const { data: userProjectsData } = useSWR(
-    workspaceSlug && userId ? USER_PROFILE_PROJECT_SEGREGATION(workspaceSlug.toString(), userId.toString()) : null,
-    workspaceSlug && userId
-      ? () => userService.getUserProfileProjectsSegregation(workspaceSlug.toString(), userId.toString())
-      : null
-  );
+  const { t } = useTranslation();
+  // derived values
+  const userData = userProjectsData?.user_data;
 
   useOutsideClickDetector(ref, () => {
     if (profileSidebarCollapsed === false) {
@@ -56,12 +57,12 @@ export const ProfileSidebar = observer(() => {
 
   const userDetails = [
     {
-      label: "Joined on",
-      value: renderFormattedDate(userProjectsData?.user_data.date_joined ?? ""),
+      i18n_label: "profile.details.joined_on",
+      value: renderFormattedDate(userData?.date_joined ?? ""),
     },
     {
-      label: "Timezone",
-      value: <ProfileSidebarTime timeZone={userProjectsData?.user_data.user_timezone} />,
+      i18n_label: "profile.details.time_zone",
+      value: <ProfileSidebarTime timeZone={userData?.user_timezone} />,
     },
   ];
 
@@ -82,12 +83,15 @@ export const ProfileSidebar = observer(() => {
 
   return (
     <div
-      className={`vertical-scrollbar scrollbar-md fixed z-[5] h-full w-full flex-shrink-0 overflow-hidden overflow-y-auto border-l border-custom-border-100 bg-custom-sidebar-background-100 shadow-custom-shadow-sm transition-all md:relative md:w-[300px]`}
+      className={cn(
+        `vertical-scrollbar scrollbar-md fixed z-[5] h-full w-full flex-shrink-0 overflow-hidden overflow-y-auto border-l border-custom-border-100 bg-custom-sidebar-background-100 transition-all md:relative md:w-[300px]`,
+        className
+      )}
       style={profileSidebarCollapsed ? { marginLeft: `${window?.innerWidth || 0}px` } : {}}
     >
       {userProjectsData ? (
         <>
-          <div className="relative h-32">
+          <div className="relative h-[110px]">
             {currentUser?.id === userId && (
               <div className="absolute right-3.5 top-3.5 grid h-5 w-5 place-items-center rounded bg-white">
                 <Link href="/profile">
@@ -98,20 +102,24 @@ export const ProfileSidebar = observer(() => {
               </div>
             )}
             <img
-              src={userProjectsData.user_data?.cover_image ?? "/users/user-profile-cover-default-img.png"}
-              alt={userProjectsData.user_data?.display_name}
-              className="h-32 w-full object-cover"
+              src={
+                userData?.cover_image_url
+                  ? getFileURL(userData?.cover_image_url)
+                  : "/users/user-profile-cover-default-img.png"
+              }
+              alt={userData?.display_name}
+              className="h-[110px] w-full object-cover"
             />
             <div className="absolute -bottom-[26px] left-5 h-[52px] w-[52px] rounded">
-              {userProjectsData.user_data?.avatar && userProjectsData.user_data?.avatar !== "" ? (
+              {userData?.avatar_url && userData?.avatar_url !== "" ? (
                 <img
-                  src={userProjectsData.user_data?.avatar}
-                  alt={userProjectsData.user_data?.display_name}
+                  src={getFileURL(userData?.avatar_url)}
+                  alt={userData?.display_name}
                   className="h-full w-full rounded object-cover"
                 />
               ) : (
                 <div className="flex h-[52px] w-[52px] items-center justify-center rounded bg-custom-background-90 capitalize text-custom-text-100">
-                  {userProjectsData.user_data?.first_name?.[0]}
+                  {userData?.first_name?.[0]}
                 </div>
               )}
             </div>
@@ -119,14 +127,14 @@ export const ProfileSidebar = observer(() => {
           <div className="px-5">
             <div className="mt-[38px]">
               <h4 className="text-lg font-semibold">
-                {userProjectsData.user_data?.first_name} {userProjectsData.user_data?.last_name}
+                {userData?.first_name} {userData?.last_name}
               </h4>
-              <h6 className="text-sm text-custom-text-200">({userProjectsData.user_data?.display_name})</h6>
+              <h6 className="text-sm text-custom-text-200">({userData?.display_name})</h6>
             </div>
             <div className="mt-6 space-y-5">
               {userDetails.map((detail) => (
-                <div key={detail.label} className="flex items-center gap-4 text-sm">
-                  <div className="w-2/5 flex-shrink-0 text-custom-text-200">{detail.label}</div>
+                <div key={detail.i18n_label} className="flex items-center gap-4 text-sm">
+                  <div className="w-2/5 flex-shrink-0 text-custom-text-200">{t(detail.i18n_label)}</div>
                   <div className="w-3/5 break-words font-medium">{detail.value}</div>
                 </div>
               ))}
@@ -223,28 +231,36 @@ export const ProfileSidebar = observer(() => {
                                   <div className="h-2.5 w-2.5 rounded-sm bg-[#203b80]" />
                                   Created
                                 </div>
-                                <div className="font-medium">{project.created_issues} Issues</div>
+                                <div className="font-medium">
+                                  {project.created_issues} {t("issues")}
+                                </div>
                               </div>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <div className="h-2.5 w-2.5 rounded-sm bg-[#3f76ff]" />
                                   Assigned
                                 </div>
-                                <div className="font-medium">{project.assigned_issues} Issues</div>
+                                <div className="font-medium">
+                                  {project.assigned_issues} {t("issues")}
+                                </div>
                               </div>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <div className="h-2.5 w-2.5 rounded-sm bg-[#f59e0b]" />
                                   Due
                                 </div>
-                                <div className="font-medium">{project.pending_issues} Issues</div>
+                                <div className="font-medium">
+                                  {project.pending_issues} {t("issues")}
+                                </div>
                               </div>
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
                                   <div className="h-2.5 w-2.5 rounded-sm bg-[#16a34a]" />
                                   Completed
                                 </div>
-                                <div className="font-medium">{project.completed_issues} Issues</div>
+                                <div className="font-medium">
+                                  {project.completed_issues} {t("issues")}
+                                </div>
                               </div>
                             </div>
                           </Disclosure.Panel>

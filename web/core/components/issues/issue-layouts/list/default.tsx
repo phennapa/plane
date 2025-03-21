@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
 import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { observer } from "mobx-react";
+// plane constants
+import { ALL_ISSUES } from "@plane/constants";
 // types
 import {
   GroupByColumnTypes,
@@ -12,18 +14,16 @@ import {
   TIssueGroupByOptions,
   TIssueOrderByOptions,
   IGroupByColumn,
+  TIssueKanbanFilters,
 } from "@plane/types";
 // components
 import { MultipleSelectGroup } from "@/components/core";
-// constants
-import { ALL_ISSUES } from "@/constants/issue";
 // hooks
-import { useCycle, useLabel, useMember, useModule, useProject, useProjectState } from "@/hooks/store";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 // plane web components
 import { IssueBulkOperationsRoot } from "@/plane-web/components/issues";
-// plane web constants
-import { ENABLE_BULK_OPERATIONS } from "@/plane-web/constants/issue";
+// plane web hooks
+import { useBulkOperationStatus } from "@/plane-web/hooks/use-bulk-operation-status";
 // utils
 import { getGroupByColumns, isWorkspaceLevel, GroupDropLocation, isSubGrouped } from "../utils";
 import { ListGroup } from "./list-group";
@@ -46,6 +46,9 @@ export interface IList {
   addIssuesToView?: (issueIds: string[]) => Promise<TIssue>;
   isCompletedCycle?: boolean;
   loadMoreIssues: (groupId?: string) => void;
+  handleCollapsedGroups: (value: string) => void;
+  collapsedGroups: TIssueKanbanFilters;
+  isEpic?: boolean;
 }
 
 export const List: React.FC<IList> = observer((props) => {
@@ -66,30 +69,23 @@ export const List: React.FC<IList> = observer((props) => {
     addIssuesToView,
     isCompletedCycle = false,
     loadMoreIssues,
+    handleCollapsedGroups,
+    collapsedGroups,
+    isEpic = false,
   } = props;
 
   const storeType = useIssueStoreType();
-  // store hooks
-  const member = useMember();
-  const project = useProject();
-  const label = useLabel();
-  const projectState = useProjectState();
-  const cycle = useCycle();
-  const projectModule = useModule();
+  // plane web hooks
+  const isBulkOperationsEnabled = useBulkOperationStatus();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const groups = getGroupByColumns(
-    group_by as GroupByColumnTypes,
-    project,
-    cycle,
-    projectModule,
-    label,
-    projectState,
-    member,
-    true,
-    isWorkspaceLevel(storeType)
-  );
+  const groups = getGroupByColumns({
+    groupBy: group_by as GroupByColumnTypes,
+    includeNone: true,
+    isWorkspaceLevel: isWorkspaceLevel(storeType),
+    isEpic: isEpic,
+  });
 
   // Enable Auto Scroll for Main Kanban
   useEffect(() => {
@@ -125,11 +121,14 @@ export const List: React.FC<IList> = observer((props) => {
   } else {
     entities = orderedGroups;
   }
-
   return (
     <div className="relative size-full flex flex-col">
       {groups && (
-        <MultipleSelectGroup containerRef={containerRef} entities={entities} disabled={!ENABLE_BULK_OPERATIONS}>
+        <MultipleSelectGroup
+          containerRef={containerRef}
+          entities={entities}
+          disabled={!isBulkOperationsEnabled || isEpic}
+        >
           {(helpers) => (
             <>
               <div
@@ -159,6 +158,9 @@ export const List: React.FC<IList> = observer((props) => {
                     loadMoreIssues={loadMoreIssues}
                     containerRef={containerRef}
                     selectionHelpers={helpers}
+                    handleCollapsedGroups={handleCollapsedGroups}
+                    collapsedGroups={collapsedGroups}
+                    isEpic={isEpic}
                   />
                 ))}
               </div>

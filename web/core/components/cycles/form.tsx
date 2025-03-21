@@ -2,15 +2,20 @@
 
 import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
+// plane imports
+import { ETabIndices } from "@plane/constants";
 // types
+import { useTranslation } from "@plane/i18n";
 import { ICycle } from "@plane/types";
 // ui
 import { Button, Input, TextArea } from "@plane/ui";
 // components
 import { DateRangeDropdown, ProjectDropdown } from "@/components/dropdowns";
+// constants
 // helpers
 import { getDate, renderFormattedPayloadDate } from "@/helpers/date-time.helper";
 import { shouldRenderProject } from "@/helpers/project.helper";
+import { getTabIndex } from "@/helpers/tab-indices.helper";
 
 type Props = {
   handleFormSubmit: (values: Partial<ICycle>, dirtyFields: any) => Promise<void>;
@@ -19,6 +24,7 @@ type Props = {
   projectId: string;
   setActiveProject: (projectId: string) => void;
   data?: ICycle | null;
+  isMobile?: boolean;
 };
 
 const defaultValues: Partial<ICycle> = {
@@ -29,7 +35,8 @@ const defaultValues: Partial<ICycle> = {
 };
 
 export const CycleForm: React.FC<Props> = (props) => {
-  const { handleFormSubmit, handleClose, status, projectId, setActiveProject, data } = props;
+  const { handleFormSubmit, handleClose, status, projectId, setActiveProject, data, isMobile = false } = props;
+  const { t } = useTranslation();
   // form data
   const {
     formState: { errors, isSubmitting, dirtyFields },
@@ -45,6 +52,8 @@ export const CycleForm: React.FC<Props> = (props) => {
       end_date: data?.end_date || null,
     },
   });
+
+  const { getIndex } = getTabIndex(ETabIndices.PROJECT_CYCLE, isMobile);
 
   useEffect(() => {
     reset({
@@ -69,15 +78,18 @@ export const CycleForm: React.FC<Props> = (props) => {
                       onChange(val);
                       setActiveProject(val);
                     }}
+                    multiple={false}
                     buttonVariant="border-with-text"
                     renderCondition={(project) => shouldRenderProject(project)}
-                    tabIndex={7}
+                    tabIndex={getIndex("cover_image")}
                   />
                 </div>
               )}
             />
           )}
-          <h3 className="text-xl font-medium text-custom-text-200">{status ? "Update" : "Create"} Cycle</h3>
+          <h3 className="text-xl font-medium text-custom-text-200">
+            {status ? t("project_cycles.update_cycle") : t("project_cycles.create_cycle")}
+          </h3>
         </div>
         <div className="space-y-3">
           <div className="space-y-1">
@@ -85,23 +97,23 @@ export const CycleForm: React.FC<Props> = (props) => {
               name="name"
               control={control}
               rules={{
-                required: "Title is required",
+                required: t("title_is_required"),
                 maxLength: {
                   value: 255,
-                  message: "Title should be less than 255 characters",
+                  message: t("title_should_be_less_than_255_characters"),
                 },
               }}
               render={({ field: { value, onChange } }) => (
                 <Input
                   name="name"
                   type="text"
-                  placeholder="Title"
+                  placeholder={t("title")}
                   className="w-full text-base"
                   value={value}
                   inputSize="md"
                   onChange={onChange}
                   hasError={Boolean(errors?.name)}
-                  tabIndex={1}
+                  tabIndex={getIndex("description")}
                   autoFocus
                 />
               )}
@@ -115,12 +127,12 @@ export const CycleForm: React.FC<Props> = (props) => {
               render={({ field: { value, onChange } }) => (
                 <TextArea
                   name="description"
-                  placeholder="Description"
+                  placeholder={t("description")}
                   className="w-full text-base resize-none min-h-24"
                   hasError={Boolean(errors?.description)}
                   value={value}
                   onChange={onChange}
-                  tabIndex={2}
+                  tabIndex={getIndex("description")}
                 />
               )}
             />
@@ -153,7 +165,7 @@ export const CycleForm: React.FC<Props> = (props) => {
                       hideIcon={{
                         to: true,
                       }}
-                      tabIndex={3}
+                      tabIndex={getIndex("date_range")}
                     />
                   )}
                 />
@@ -163,11 +175,17 @@ export const CycleForm: React.FC<Props> = (props) => {
         </div>
       </div>
       <div className="px-5 py-4 flex items-center justify-end gap-2 border-t-[0.5px] border-custom-border-200">
-        <Button variant="neutral-primary" size="sm" onClick={handleClose} tabIndex={4}>
-          Cancel
+        <Button variant="neutral-primary" size="sm" onClick={handleClose} tabIndex={getIndex("cancel")}>
+          {t("common.cancel")}
         </Button>
-        <Button variant="primary" size="sm" type="submit" loading={isSubmitting} tabIndex={5}>
-          {data ? (isSubmitting ? "Updating" : "Update Cycle") : isSubmitting ? "Creating" : "Create Cycle"}
+        <Button variant="primary" size="sm" type="submit" loading={isSubmitting} tabIndex={getIndex("submit")}>
+          {data
+            ? isSubmitting
+              ? t("common.updating")
+              : t("project_cycles.update_cycle")
+            : isSubmitting
+              ? t("common.creating")
+              : t("project_cycles.create_cycle")}
         </Button>
       </div>
     </form>

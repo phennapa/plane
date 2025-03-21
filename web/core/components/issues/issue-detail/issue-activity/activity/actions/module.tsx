@@ -23,14 +23,14 @@ export const IssueModuleActivity: FC<TIssueModuleActivity> = observer((props) =>
   if (!activity) return <></>;
   return (
     <IssueActivityBlockComponent
-      icon={<DiceIcon className="h-4 w-4 flex-shrink-0 text-[#6b7280]" />}
+      icon={<DiceIcon className="h-4 w-4 flex-shrink-0 text-custom-text-200" />}
       activityId={activityId}
       ends={ends}
     >
       <>
         {activity.verb === "created" ? (
           <>
-            <span>added this issue to the module </span>
+            <span>added this work item to the module </span>
             <a
               href={`/${activity.workspace_detail?.slug}/projects/${activity.project}/modules/${activity.new_identifier}`}
               target="_blank"
@@ -54,7 +54,7 @@ export const IssueModuleActivity: FC<TIssueModuleActivity> = observer((props) =>
           </>
         ) : (
           <>
-            <span>removed the issue from the module </span>
+            <span>removed the work item from the module </span>
             <a
               href={`/${activity.workspace_detail?.slug}/projects/${activity.project}/modules/${activity.old_identifier}`}
               target="_blank"

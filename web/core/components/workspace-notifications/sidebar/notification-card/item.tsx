@@ -3,13 +3,13 @@
 import { FC, useState } from "react";
 import { observer } from "mobx-react";
 import { Clock } from "lucide-react";
-import { TCurrentSelectedNotification } from "@plane/types";
-import { Avatar } from "@plane/ui";
+import { Avatar, Row } from "@plane/ui";
 // components
 import { NotificationOption } from "@/components/workspace-notifications";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { calculateTimeAgo, renderFormattedDate, renderFormattedTime } from "@/helpers/date-time.helper";
+import { getFileURL } from "@/helpers/file.helper";
 import { sanitizeCommentForNotification } from "@/helpers/notification.helper";
 import { replaceUnderscoreIfSnakeCase, stripAndTruncateHTML } from "@/helpers/string.helper";
 // hooks
@@ -23,7 +23,7 @@ type TNotificationItem = {
 export const NotificationItem: FC<TNotificationItem> = observer((props) => {
   const { workspaceSlug, notificationId } = props;
   // hooks
-  const { currentSelectedNotification, setCurrentSelectedNotification } = useWorkspaceNotifications();
+  const { currentSelectedNotificationId, setCurrentSelectedNotificationId } = useWorkspaceNotifications();
   const { asJson: notification, markNotificationAsRead } = useNotification(notificationId);
   const { getIsIssuePeeked, setPeekIssue } = useIssueDetail();
   // states
@@ -38,22 +38,9 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
   const notificationTriggeredBy = notification.triggered_by_details || undefined;
 
   const handleNotificationIssuePeekOverview = async () => {
-    if (
-      workspaceSlug &&
-      projectId &&
-      issueId &&
-      !getIsIssuePeeked(issueId) &&
-      !isSnoozeStateModalOpen &&
-      !customSnoozeModal
-    ) {
-      const currentSelectedNotificationPayload: TCurrentSelectedNotification = {
-        workspace_slug: workspaceSlug,
-        project_id: projectId,
-        issue_id: issueId,
-        notification_id: notification?.id,
-        is_inbox_issue: notification?.is_inbox_issue || false,
-      };
-      setCurrentSelectedNotification(currentSelectedNotificationPayload);
+    if (workspaceSlug && projectId && issueId && !isSnoozeStateModalOpen && !customSnoozeModal) {
+      setPeekIssue(undefined);
+      setCurrentSelectedNotificationId(notificationId);
 
       // make the notification as read
       if (notification.read_at === null) {
@@ -65,8 +52,7 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
       }
 
       if (notification?.is_inbox_issue === false) {
-        setPeekIssue({ workspaceSlug, projectId, issueId });
-      } else {
+        !getIsIssuePeeked(issueId) && setPeekIssue({ workspaceSlug, projectId, issueId });
       }
     }
   };
@@ -74,18 +60,16 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
   if (!workspaceSlug || !notificationId || !notification?.id || !notificationField) return <></>;
 
   return (
-    <div
+    <Row
       className={cn(
-        "relative p-3 py-4 flex items-center gap-2 border-b border-custom-border-200 cursor-pointer transition-all group",
-        currentSelectedNotification && currentSelectedNotification?.notification_id === notification?.id
-          ? "bg-custom-background-80/30"
-          : "",
+        "relative py-4 flex items-center gap-2 border-b border-custom-border-200 cursor-pointer transition-all group",
+        currentSelectedNotificationId === notification?.id ? "bg-custom-background-80/30" : "",
         notification.read_at === null ? "bg-custom-primary-100/5" : ""
       )}
       onClick={handleNotificationIssuePeekOverview}
     >
       {notification.read_at === null && (
-        <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-custom-primary-100" />
+        <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-custom-primary-100 absolute top-[50%] left-2" />
       )}
 
       <div className="relative w-full flex gap-2">
@@ -93,7 +77,7 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
           {notificationTriggeredBy && (
             <Avatar
               name={notificationTriggeredBy.display_name || notificationTriggeredBy?.first_name}
-              src={notificationTriggeredBy.avatar ?? undefined}
+              src={getFileURL(notificationTriggeredBy.avatar_url)}
               size={42}
               shape="circle"
               className="!text-base !bg-custom-background-80"
@@ -103,7 +87,7 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
 
         <div className="w-full space-y-1 -mt-2">
           <div className="relative flex items-center gap-3 h-8">
-            <div className="w-full overflow-hidden whitespace-normal break-words truncate line-clamp-1 text-sm text-custom-text-100">
+            <div className="w-full overflow-hidden whitespace-normal break-all truncate line-clamp-1 text-sm text-custom-text-100">
               {!notification.message ? (
                 <>
                   <span className="font-semibold">
@@ -116,34 +100,40 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
                     ? "commented"
                     : notificationField === "archived_at"
                       ? notification?.data?.issue_activity.new_value === "restore"
-                        ? "restored the issue"
-                        : "archived the issue"
+                        ? "restored the work item"
+                        : "archived the work item"
                       : notificationField === "None"
                         ? null
                         : replaceUnderscoreIfSnakeCase(notificationField)}{" "}
-                  {!["comment", "archived_at", "None"].includes(notificationField) ? "to" : ""}
-                  <span className="font-semibold">
-                    {" "}
-                    {notificationField !== "None" ? (
-                      notificationField !== "comment" ? (
-                        notificationField === "target_date" ? (
-                          renderFormattedDate(notification?.data?.issue_activity.new_value)
-                        ) : notificationField === "attachment" ? (
-                          "the issue"
-                        ) : notificationField === "description" ? (
-                          stripAndTruncateHTML(notification?.data?.issue_activity.new_value || "", 55)
-                        ) : notificationField === "archived_at" ? null : (
-                          notification?.data?.issue_activity.new_value
-                        )
-                      ) : (
-                        <span>
-                          {sanitizeCommentForNotification(notification?.data?.issue_activity.new_value ?? undefined)}
-                        </span>
-                      )
-                    ) : (
-                      "the issue and assigned it to you."
-                    )}
-                  </span>
+                  {notification?.data?.issue_activity.verb !== "deleted" && (
+                    <>
+                      {!["comment", "archived_at", "None"].includes(notificationField) ? "to" : ""}
+                      <span className="font-semibold">
+                        {" "}
+                        {notificationField !== "None" ? (
+                          notificationField !== "comment" ? (
+                            notificationField === "target_date" ? (
+                              renderFormattedDate(notification?.data?.issue_activity.new_value)
+                            ) : notificationField === "attachment" ? (
+                              "the work item"
+                            ) : notificationField === "description" ? (
+                              stripAndTruncateHTML(notification?.data?.issue_activity.new_value || "", 55)
+                            ) : notificationField === "archived_at" ? null : (
+                              notification?.data?.issue_activity.new_value
+                            )
+                          ) : (
+                            <span>
+                              {sanitizeCommentForNotification(
+                                notification?.data?.issue_activity.new_value ?? undefined
+                              )}
+                            </span>
+                          )
+                        ) : (
+                          "the work item and assigned it to you."
+                        )}
+                      </span>
+                    </>
+                  )}
                 </>
               ) : (
                 <span className="semi-bold">{notification.message}</span>
@@ -182,6 +172,6 @@ export const NotificationItem: FC<TNotificationItem> = observer((props) => {
           </div>
         </div>
       </div>
-    </div>
+    </Row>
   );
 });

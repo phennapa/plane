@@ -26,7 +26,7 @@ export type TIssueActivityProjectDetail = {
 
 export type TIssueActivityIssueDetail = {
   id: string;
-  sequence_id: boolean;
+  sequence_id: number;
   sort_order: boolean;
   name: string;
   description_html: string;
@@ -40,7 +40,7 @@ export type TIssueActivityUserDetail = {
   id: string;
   first_name: string;
   last_name: string;
-  avatar: string;
+  avatar_url: string;
   is_bot: boolean;
   display_name: string;
 };
@@ -54,5 +54,15 @@ export type TIssueActivityComment =
   | {
       id: string;
       activity_type: "ACTIVITY";
+      created_at?: string;
+    }
+  | {
+      id: string;
+      activity_type: "WORKLOG";
+      created_at?: string;
+    }
+  | {
+      id: string;
+      activity_type: "ISSUE_ADDITIONAL_PROPERTIES_ACTIVITY";
       created_at?: string;
     };

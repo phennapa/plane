@@ -1,27 +1,48 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
 import { observer } from "mobx-react";
+import { useParams } from "next/navigation";
 import useSWR from "swr";
+// plane imports
+import { ENotificationLoader, ENotificationQueryParamType } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 // components
 import { LogoSpinner } from "@/components/common";
 import { PageHead } from "@/components/core";
+import { SimpleEmptyState } from "@/components/empty-state";
 import { InboxContentRoot } from "@/components/inbox";
 import { IssuePeekOverview } from "@/components/issues";
-// constants
-import { ENotificationLoader, ENotificationQueryParamType } from "@/constants/notification";
 // hooks
-import { useUser, useWorkspace, useWorkspaceNotifications } from "@/hooks/store";
+import { useIssueDetail, useUserPermissions, useWorkspace, useWorkspaceNotifications } from "@/hooks/store";
+import { useResolvedAssetPath } from "@/hooks/use-resolved-asset-path";
+import { useWorkspaceIssueProperties } from "@/hooks/use-workspace-issue-properties";
 
 const WorkspaceDashboardPage = observer(() => {
+  const { workspaceSlug } = useParams();
+  // plane hooks
+  const { t } = useTranslation();
   // hooks
   const { currentWorkspace } = useWorkspace();
-  const { currentSelectedNotification, notificationIdsByWorkspaceId, getNotifications } = useWorkspaceNotifications();
   const {
-    membership: { fetchUserProjectInfo },
-  } = useUser();
+    currentSelectedNotificationId,
+    setCurrentSelectedNotificationId,
+    notificationLiteByNotificationId,
+    notificationIdsByWorkspaceId,
+    getNotifications,
+  } = useWorkspaceNotifications();
+  const { fetchUserProjectInfo } = useUserPermissions();
+  const { setPeekIssue } = useIssueDetail();
   // derived values
-  const pageTitle = currentWorkspace?.name ? `${currentWorkspace?.name} - Notifications` : undefined;
-  const { workspace_slug, project_id, issue_id, is_inbox_issue } = currentSelectedNotification;
+  const pageTitle = currentWorkspace?.name
+    ? t("notification.page_label", { workspace: currentWorkspace?.name })
+    : undefined;
+  const { workspace_slug, project_id, issue_id, is_inbox_issue } =
+    notificationLiteByNotificationId(currentSelectedNotificationId);
+  const resolvedPath = useResolvedAssetPath({ basePath: "/empty-state/intake/issue-detail" });
+
+  // fetching workspace work item properties
+  useWorkspaceIssueProperties(workspaceSlug);
 
   // fetch workspace notifications
   const notificationMutation =
@@ -47,29 +68,52 @@ const WorkspaceDashboardPage = observer(() => {
     workspace_slug && project_id && is_inbox_issue ? () => fetchUserProjectInfo(workspace_slug, project_id) : null
   );
 
+  const embedRemoveCurrentNotification = useCallback(
+    () => setCurrentSelectedNotificationId(undefined),
+    [setCurrentSelectedNotificationId]
+  );
+
+  // clearing up the selected notifications when unmounting the page
+  useEffect(
+    () => () => {
+      setCurrentSelectedNotificationId(undefined);
+      setPeekIssue(undefined);
+    },
+    [setCurrentSelectedNotificationId, setPeekIssue]
+  );
+
   return (
     <>
       <PageHead title={pageTitle} />
       <div className="w-full h-full overflow-hidden overflow-y-auto">
-        {is_inbox_issue === true && workspace_slug && project_id && issue_id ? (
+        {!currentSelectedNotificationId ? (
+          <div className="w-full h-screen flex justify-center items-center">
+            <SimpleEmptyState title={t("notification.empty_state.detail.title")} assetPath={resolvedPath} />
+          </div>
+        ) : (
           <>
-            {projectMemberInfoLoader ? (
-              <div className="w-full h-full flex justify-center items-center">
-                <LogoSpinner />
-              </div>
+            {is_inbox_issue === true && workspace_slug && project_id && issue_id ? (
+              <>
+                {projectMemberInfoLoader ? (
+                  <div className="w-full h-full flex justify-center items-center">
+                    <LogoSpinner />
+                  </div>
+                ) : (
+                  <InboxContentRoot
+                    setIsMobileSidebar={() => {}}
+                    isMobileSidebar={false}
+                    workspaceSlug={workspace_slug}
+                    projectId={project_id}
+                    inboxIssueId={issue_id}
+                    isNotificationEmbed
+                    embedRemoveCurrentNotification={embedRemoveCurrentNotification}
+                  />
+                )}
+              </>
             ) : (
-              <InboxContentRoot
-                setIsMobileSidebar={() => {}}
-                isMobileSidebar={false}
-                workspaceSlug={workspace_slug}
-                projectId={project_id}
-                inboxIssueId={issue_id}
-                isNotificationEmbed
-              />
+              <IssuePeekOverview embedIssue embedRemoveCurrentNotification={embedRemoveCurrentNotification} />
             )}
           </>
-        ) : (
-          <IssuePeekOverview embedIssue />
         )}
       </div>
     </>

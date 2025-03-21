@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
+import { useTranslation } from "@plane/i18n";
 import { TPageFilterProps } from "@plane/types";
 // components
+import { Tag } from "@plane/ui";
 import { AppliedDateFilters, AppliedMembersFilters } from "@/components/common/applied-filters";
 // helpers
 import { replaceUnderscoreIfSnakeCase } from "@/helpers/string.helper";
@@ -18,6 +20,7 @@ const DATE_FILTERS = ["created_at"];
 
 export const PageAppliedFiltersList: React.FC<Props> = (props) => {
   const { appliedFilters, handleClearAllFilters, handleRemoveFilter, alwaysAllowEditing } = props;
+  const { t } = useTranslation();
 
   if (!appliedFilters) return null;
   if (Object.keys(appliedFilters).length === 0) return null;
@@ -33,10 +36,7 @@ export const PageAppliedFiltersList: React.FC<Props> = (props) => {
         if (Array.isArray(value) && value.length === 0) return;
 
         return (
-          <div
-            key={filterKey}
-            className="flex flex-wrap items-center gap-2 rounded-md border border-custom-border-200 px-2 py-1 capitalize"
-          >
+          <Tag key={filterKey}>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs text-custom-text-300">{replaceUnderscoreIfSnakeCase(filterKey)}</span>
               {DATE_FILTERS.includes(filterKey) && (
@@ -63,17 +63,15 @@ export const PageAppliedFiltersList: React.FC<Props> = (props) => {
                 </button>
               )}
             </div>
-          </div>
+          </Tag>
         );
       })}
       {isEditingAllowed && (
-        <button
-          type="button"
-          onClick={handleClearAllFilters}
-          className="flex items-center gap-2 rounded-md border border-custom-border-200 px-2 py-1 text-xs text-custom-text-300 hover:text-custom-text-200"
-        >
-          Clear all
-          <X size={12} strokeWidth={2} />
+        <button type="button" onClick={handleClearAllFilters}>
+          <Tag>
+            {t("common.clear_all")}
+            <X size={12} strokeWidth={2} />
+          </Tag>
         </button>
       )}
     </div>

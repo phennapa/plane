@@ -6,18 +6,18 @@ import { observer } from "mobx-react";
 // icons
 import { Pencil, Trash2 } from "lucide-react";
 // types
+import { EIssuesStoreType,EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { TIssue } from "@plane/types";
 // ui
 import { ContextMenu, CustomMenu, TContextMenuItem } from "@plane/ui";
 // components
 import { CreateUpdateIssueModal, DeleteIssueModal } from "@/components/issues";
 // constant
-import { EIssuesStoreType } from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 // hooks
-import { useEventTracker, useIssues, useUser } from "@/hooks/store";
+import { useEventTracker, useIssues, useUserPermissions } from "@/hooks/store";
 // types
 import { IQuickActionProps } from "../list/list-view-types";
 
@@ -37,15 +37,16 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
   const [issueToEdit, setIssueToEdit] = useState<TIssue | undefined>(undefined);
   const [deleteIssueModal, setDeleteIssueModal] = useState(false);
   // store hooks
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
   const { setTrackElement } = useEventTracker();
   const { issuesFilter } = useIssues(EIssuesStoreType.PROJECT);
+
+  const { t } = useTranslation();
   // derived values
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
   // auth
-  const isEditingAllowed = !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER && !readOnly;
+  const isEditingAllowed =
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) && !readOnly;
   const isDeletingAllowed = isEditingAllowed;
 
   const duplicateIssuePayload = omit(
@@ -60,7 +61,7 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
   const MENU_ITEMS: TContextMenuItem[] = [
     {
       key: "edit",
-      title: "Edit",
+      title: "edit",
       icon: Pencil,
       action: () => {
         setTrackElement(activeLayout);
@@ -71,7 +72,7 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
     },
     {
       key: "delete",
-      title: "Delete",
+      title: "delete",
       icon: Trash2,
       action: () => {
         setTrackElement(activeLayout);
@@ -104,7 +105,7 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
         onSubmit={async (data) => {
           if (issueToEdit && handleUpdate) await handleUpdate(data);
         }}
-        storeType={EIssuesStoreType.PROJECT}
+        storeType={EIssuesStoreType.DRAFT}
         isDraft
       />
       <ContextMenu parentRef={parentRef} items={MENU_ITEMS} />
@@ -115,6 +116,7 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
         placement={placements}
         menuItemsClassName="z-[14]"
         maxHeight="lg"
+        useCaptureForOutsideClick
         closeOnSelect
       >
         {MENU_ITEMS.map((item) => {
@@ -138,7 +140,7 @@ export const DraftIssueQuickActions: React.FC<IQuickActionProps> = observer((pro
             >
               {item.icon && <item.icon className={cn("h-3 w-3", item.iconClassName)} />}
               <div>
-                <h5>{item.title}</h5>
+                <h5>{t(item.title ?? "")}</h5>
                 {item.description && (
                   <p
                     className={cn("text-custom-text-300 whitespace-pre-line", {

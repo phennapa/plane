@@ -4,16 +4,22 @@ import { FC, useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import { useForm } from "react-hook-form";
 import { Check, Globe2, Lock, Pencil, Trash2, X } from "lucide-react";
+// plane constants
+import { EIssueCommentAccessSpecifier } from "@plane/constants";
+// plane editor
 import { EditorReadOnlyRefApi, EditorRefApi } from "@plane/editor";
+// plane i18n
+import { useTranslation } from "@plane/i18n";
+// plane types
 import { TIssueComment } from "@plane/types";
-// ui
+// plane ui
 import { CustomMenu } from "@plane/ui";
+// plane utils
+import { cn } from "@plane/utils";
 // components
 import { LiteTextEditor, LiteTextReadOnlyEditor } from "@/components/editor";
-// constants
-import { EIssueCommentAccessSpecifier } from "@/constants/issue";
 // helpers
-import { isEmptyHtmlString } from "@/helpers/string.helper";
+import { isCommentEmpty } from "@/helpers/string.helper";
 // hooks
 import { useIssueDetail, useUser, useWorkspace } from "@/hooks/store";
 // components
@@ -23,6 +29,7 @@ import { IssueCommentBlock } from "./comment-block";
 
 type TIssueCommentCard = {
   projectId: string;
+  issueId: string;
   workspaceSlug: string;
   commentId: string;
   activityOperations: TActivityOperations;
@@ -35,27 +42,29 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
   const {
     workspaceSlug,
     projectId,
+    issueId,
     commentId,
     activityOperations,
     ends,
     showAccessSpecifier = false,
     disabled = false,
   } = props;
-  // hooks
+  const { t } = useTranslation();
+  // states
+  const [isEditing, setIsEditing] = useState(false);
+  // refs
+  const editorRef = useRef<EditorRefApi>(null);
+  const showEditorRef = useRef<EditorReadOnlyRefApi>(null);
+  // store hooks
   const {
     comment: { getCommentById },
   } = useIssueDetail();
   const { data: currentUser } = useUser();
-  // refs
-  const editorRef = useRef<EditorRefApi>(null);
-  const showEditorRef = useRef<EditorReadOnlyRefApi>(null);
-  // state
-  const [isEditing, setIsEditing] = useState(false);
-
+  // derived values
   const comment = getCommentById(commentId);
   const workspaceStore = useWorkspace();
   const workspaceId = workspaceStore.getWorkspaceBySlug(comment?.workspace_detail?.slug as string)?.id as string;
-
+  // form info
   const {
     formState: { isSubmitting },
     handleSubmit,
@@ -65,27 +74,30 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
   } = useForm<Partial<TIssueComment>>({
     defaultValues: { comment_html: comment?.comment_html },
   });
+  // derived values
+  const commentHTML = watch("comment_html");
+  const isEmpty = isCommentEmpty(commentHTML);
+  const isEditorReadyToDiscard = editorRef.current?.isEditorReadyToDiscard();
+  const isSubmitButtonDisabled = isSubmitting || !isEditorReadyToDiscard;
 
-  const onEnter = (formData: Partial<TIssueComment>) => {
+  const onEnter = async (formData: Partial<TIssueComment>) => {
     if (isSubmitting || !comment) return;
     setIsEditing(false);
 
-    activityOperations.updateComment(comment.id, formData);
+    await activityOperations.updateComment(comment.id, formData);
 
     editorRef.current?.setEditorValue(formData?.comment_html ?? "<p></p>");
     showEditorRef.current?.setEditorValue(formData?.comment_html ?? "<p></p>");
   };
 
   useEffect(() => {
-    isEditing && setFocus("comment_html");
+    if (isEditing) {
+      setFocus("comment_html");
+    }
   }, [isEditing, setFocus]);
 
-  const isEmpty =
-    watch("comment_html")?.trim() === "" ||
-    watch("comment_html") === "<p></p>" ||
-    isEmptyHtmlString(watch("comment_html") ?? "");
-
   if (!comment || !currentUser) return <></>;
+
   return (
     <IssueCommentBlock
       commentId={commentId}
@@ -94,8 +106,8 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
           {!disabled && currentUser?.id === comment.actor && (
             <CustomMenu ellipsis closeOnSelect>
               <CustomMenu.MenuItem onClick={() => setIsEditing(true)} className="flex items-center gap-1">
-                <Pencil className="h-3 w-3" />
-                Edit comment
+                <Pencil className="flex-shrink-0 size-3" />
+                {t("common.actions.edit")}
               </CustomMenu.MenuItem>
               {showAccessSpecifier && (
                 <>
@@ -106,8 +118,8 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
                       }
                       className="flex items-center gap-1"
                     >
-                      <Globe2 className="h-3 w-3" />
-                      Switch to public comment
+                      <Globe2 className="flex-shrink-0 size-3" />
+                      {t("issue.comments.switch.public")}
                     </CustomMenu.MenuItem>
                   ) : (
                     <CustomMenu.MenuItem
@@ -116,8 +128,8 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
                       }
                       className="flex items-center gap-1"
                     >
-                      <Lock className="h-3 w-3" />
-                      Switch to private comment
+                      <Lock className="flex-shrink-0 size-3" />
+                      {t("issue.comments.switch.private")}
                     </CustomMenu.MenuItem>
                   )}
                 </>
@@ -126,8 +138,8 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
                 onClick={() => activityOperations.removeComment(comment.id)}
                 className="flex items-center gap-1"
               >
-                <Trash2 className="h-3 w-3" />
-                Delete comment
+                <Trash2 className="flex-shrink-0 size-3" />
+                {t("common.actions.delete")}
               </CustomMenu.MenuItem>
             </CustomMenu>
           )}
@@ -137,46 +149,55 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
     >
       <>
         <form className={`flex-col gap-2 ${isEditing ? "flex" : "hidden"}`}>
-          <div>
+          <div
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !isEmpty) handleSubmit(onEnter)(e);
+            }}
+          >
             <LiteTextEditor
               workspaceId={workspaceId}
               projectId={projectId}
+              issue_id={issueId}
               workspaceSlug={workspaceSlug}
               ref={editorRef}
-              initialValue={watch("comment_html") ?? ""}
+              id={comment.id}
+              initialValue={commentHTML ?? ""}
               value={null}
               onChange={(comment_json, comment_html) => setValue("comment_html", comment_html)}
-              onEnterKeyPress={(commentHTML) => {
-                const isCommentEmpty =
-                  commentHTML?.trim() === "" ||
-                  commentHTML === "<p></p>" ||
-                  (isEmptyHtmlString(commentHTML ?? "") && !commentHTML?.includes("mention-component"));
-                if (!isCommentEmpty && !isSubmitting) {
-                  handleSubmit(onEnter)();
+              onEnterKeyPress={(e) => {
+                if (!isEmpty && !isSubmitting) {
+                  handleSubmit(onEnter)(e);
                 }
               }}
               showSubmitButton={false}
+              uploadFile={async (blockId, file) => {
+                const { asset_id } = await activityOperations.uploadCommentAsset(blockId, file, comment.id);
+                return asset_id;
+              }}
             />
           </div>
           <div className="flex gap-1 self-end">
-            <button
-              type="button"
-              onClick={handleSubmit(onEnter)}
-              disabled={isSubmitting || isEmpty}
-              className={`group rounded border border-green-500 bg-green-500/20 p-2 shadow-md duration-300  ${
-                isEmpty ? "cursor-not-allowed bg-gray-200" : "hover:bg-green-500"
-              }`}
-            >
-              <Check
-                className={`h-3 w-3 text-green-500 duration-300 ${isEmpty ? "text-black" : "group-hover:text-white"}`}
-              />
-            </button>
+            {!isEmpty && (
+              <button
+                type="button"
+                onClick={handleSubmit(onEnter)}
+                disabled={isSubmitButtonDisabled}
+                className={cn(
+                  "group rounded border border-green-500 text-green-500 hover:text-white bg-green-500/20 hover:bg-green-500 p-2 shadow-md duration-300",
+                  {
+                    "pointer-events-none": isSubmitButtonDisabled,
+                  }
+                )}
+              >
+                <Check className="size-3" />
+              </button>
+            )}
             <button
               type="button"
               className="group rounded border border-red-500 bg-red-500/20 p-2 shadow-md duration-300 hover:bg-red-500"
               onClick={() => setIsEditing(false)}
             >
-              <X className="h-3 w-3 text-red-500 duration-300 group-hover:text-white" />
+              <X className="size-3 text-red-500 duration-300 group-hover:text-white" />
             </button>
           </div>
         </form>
@@ -190,7 +211,14 @@ export const IssueCommentCard: FC<TIssueCommentCard> = observer((props) => {
               )}
             </div>
           )}
-          <LiteTextReadOnlyEditor ref={showEditorRef} initialValue={comment.comment_html ?? ""} />
+          <LiteTextReadOnlyEditor
+            ref={showEditorRef}
+            id={comment.id}
+            initialValue={comment.comment_html ?? ""}
+            workspaceId={workspaceId}
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+          />
 
           <IssueCommentReaction
             workspaceSlug={workspaceSlug}

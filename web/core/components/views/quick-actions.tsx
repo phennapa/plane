@@ -4,18 +4,18 @@ import { useState } from "react";
 import { observer } from "mobx-react";
 import { ExternalLink, Link, Pencil, Trash2 } from "lucide-react";
 // types
+import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { IProjectView } from "@plane/types";
 // ui
 import { ContextMenu, CustomMenu, TContextMenuItem, TOAST_TYPE, setToast } from "@plane/ui";
 // components
 import { CreateUpdateProjectViewModal, DeleteProjectViewModal } from "@/components/views";
-// constants
-import { EUserProjectRoles } from "@/constants/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { copyUrlToClipboard } from "@/helpers/string.helper";
 // hooks
-import { useUser } from "@/hooks/store";
+import { useUser, useUserPermissions } from "@/hooks/store";
+import { PublishViewModal, useViewPublish } from "@/plane-web/components/views/publish";
 
 type Props = {
   parentRef: React.RefObject<HTMLElement>;
@@ -30,13 +30,16 @@ export const ViewQuickActions: React.FC<Props> = observer((props) => {
   const [createUpdateViewModal, setCreateUpdateViewModal] = useState(false);
   const [deleteViewModal, setDeleteViewModal] = useState(false);
   // store hooks
-  const {
-    membership: { currentProjectRole },
-    data,
-  } = useUser();
+  const { data } = useUser();
+  const { allowPermissions } = useUserPermissions();
   // auth
   const isOwner = view?.owned_by === data?.id;
-  const isAdmin = !!currentProjectRole && currentProjectRole == EUserProjectRoles.ADMIN;
+  const isAdmin = allowPermissions([EUserPermissions.ADMIN], EUserPermissionsLevel.PROJECT, workspaceSlug, projectId);
+
+  const { isPublishModalOpen, setPublishModalOpen, publishContextMenu } = useViewPublish(
+    !!view.anchor,
+    isAdmin || isOwner
+  );
 
   const viewLink = `${workspaceSlug}/projects/${projectId}/views/${view.id}`;
   const handleCopyText = () =>
@@ -78,6 +81,8 @@ export const ViewQuickActions: React.FC<Props> = observer((props) => {
     },
   ];
 
+  if (publishContextMenu) MENU_ITEMS.splice(2, 0, publishContextMenu);
+
   return (
     <>
       <CreateUpdateProjectViewModal
@@ -88,6 +93,7 @@ export const ViewQuickActions: React.FC<Props> = observer((props) => {
         data={view}
       />
       <DeleteProjectViewModal data={view} isOpen={deleteViewModal} onClose={() => setDeleteViewModal(false)} />
+      <PublishViewModal isOpen={isPublishModalOpen} onClose={() => setPublishModalOpen(false)} view={view} />
       <ContextMenu parentRef={parentRef} items={MENU_ITEMS} />
       <CustomMenu ellipsis placement="bottom-end" closeOnSelect>
         {MENU_ITEMS.map((item) => {

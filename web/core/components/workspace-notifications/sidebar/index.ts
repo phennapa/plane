@@ -1,6 +1,5 @@
 export * from "./loader";
-
-export * from "./root";
+export * from "./empty-state";
 
 export * from "./header";
 

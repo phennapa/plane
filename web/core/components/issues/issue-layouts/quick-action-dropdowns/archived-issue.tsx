@@ -6,17 +6,16 @@ import { useParams } from "next/navigation";
 // icons
 import { ArchiveRestoreIcon, ExternalLink, Link, Trash2 } from "lucide-react";
 // ui
+import { EIssuesStoreType, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { ContextMenu, CustomMenu, TContextMenuItem, TOAST_TYPE, setToast } from "@plane/ui";
 // components
 import { DeleteIssueModal } from "@/components/issues";
 // constants
-import { EIssuesStoreType } from "@/constants/issue";
-import { EUserProjectRoles } from "@/constants/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 import { copyUrlToClipboard } from "@/helpers/string.helper";
 // hooks
-import { useEventTracker, useIssues, useUser } from "@/hooks/store";
+import { useEventTracker, useIssues, useUserPermissions } from "@/hooks/store";
 // types
 import { IQuickActionProps } from "../list/list-view-types";
 
@@ -36,16 +35,17 @@ export const ArchivedIssueQuickActions: React.FC<IQuickActionProps> = observer((
   // router
   const { workspaceSlug } = useParams();
   // store hooks
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  const { allowPermissions } = useUserPermissions();
+
   const { setTrackElement } = useEventTracker();
   const { issuesFilter } = useIssues(EIssuesStoreType.ARCHIVED);
   // derived values
   const activeLayout = `${issuesFilter.issueFilters?.displayFilters?.layout} layout`;
   // auth
-  const isEditingAllowed = !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER && !readOnly;
-  const isRestoringAllowed = handleRestore && isEditingAllowed;
+  const isEditingAllowed =
+    allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT) && !readOnly;
+  const isRestoringAllowed =
+    handleRestore && allowPermissions([EUserPermissions.ADMIN, EUserPermissions.MEMBER], EUserPermissionsLevel.PROJECT);
 
   const issueLink = `${workspaceSlug}/projects/${issue.project_id}/archives/issues/${issue.id}`;
 
@@ -55,7 +55,7 @@ export const ArchivedIssueQuickActions: React.FC<IQuickActionProps> = observer((
       setToast({
         type: TOAST_TYPE.SUCCESS,
         title: "Link copied",
-        message: "Issue link copied to clipboard",
+        message: "Work item link copied to clipboard",
       })
     );
   const handleIssueRestore = async () => {
@@ -65,14 +65,14 @@ export const ArchivedIssueQuickActions: React.FC<IQuickActionProps> = observer((
         setToast({
           type: TOAST_TYPE.SUCCESS,
           title: "Restore success",
-          message: "Your issue can be found in project issues.",
+          message: "Your work item can be found in project work items.",
         });
       })
       .catch(() => {
         setToast({
           type: TOAST_TYPE.ERROR,
           title: "Error!",
-          message: "Issue could not be restored. Please try again.",
+          message: "Work item could not be restored. Please try again.",
         });
       });
   };
@@ -125,6 +125,7 @@ export const ArchivedIssueQuickActions: React.FC<IQuickActionProps> = observer((
         placement={placements}
         menuItemsClassName="z-[14]"
         maxHeight="lg"
+        useCaptureForOutsideClick
         closeOnSelect
       >
         {MENU_ITEMS.map((item) => {

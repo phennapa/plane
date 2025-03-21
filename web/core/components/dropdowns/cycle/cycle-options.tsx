@@ -8,12 +8,15 @@ import { usePopper } from "react-popper";
 // components
 import { Check, Search } from "lucide-react";
 import { Combobox } from "@headlessui/react";
+// i18n
+import { useTranslation } from "@plane/i18n";
 // icon
 import { TCycleGroups } from "@plane/types";
 // ui
 import { ContrastIcon, CycleGroupIcon } from "@plane/ui";
 // store hooks
 import { useCycle } from "@/hooks/store";
+import { usePlatformOS } from "@/hooks/use-platform-os";
 // types
 
 type DropdownOptions =
@@ -29,10 +32,14 @@ type CycleOptionsProps = {
   referenceElement: HTMLButtonElement | null;
   placement: Placement | undefined;
   isOpen: boolean;
+  canRemoveCycle: boolean;
+  currentCycleId?: string;
 };
 
 export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
-  const { projectId, isOpen, referenceElement, placement } = props;
+  const { projectId, isOpen, referenceElement, placement, canRemoveCycle, currentCycleId } = props;
+  // i18n
+  const { t } = useTranslation();
   //state hooks
   const [query, setQuery] = useState("");
   const [popperElement, setPopperElement] = useState<HTMLDivElement | null>(null);
@@ -40,13 +47,16 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
   // store hooks
   const { workspaceSlug } = useParams();
   const { getProjectCycleIds, fetchAllCycles, getCycleById } = useCycle();
+  const { isMobile } = usePlatformOS();
 
   useEffect(() => {
     if (isOpen) {
       onOpen();
-      inputRef.current && inputRef.current.focus();
+      if (!isMobile) {
+        inputRef.current && inputRef.current.focus();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, isMobile]);
 
   // popper-js init
   const { styles, attributes } = usePopper(referenceElement, popperElement, {
@@ -63,6 +73,7 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
 
   const cycleIds = (getProjectCycleIds(projectId) ?? [])?.filter((cycleId) => {
     const cycleDetails = getCycleById(cycleId);
+    if (currentCycleId && currentCycleId === cycleId) return false;
     return cycleDetails?.status ? (cycleDetails?.status.toLowerCase() != "completed" ? true : false) : true;
   });
 
@@ -92,16 +103,19 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
       ),
     };
   });
-  options?.unshift({
-    value: null,
-    query: "No cycle",
-    content: (
-      <div className="flex items-center gap-2">
-        <ContrastIcon className="h-3 w-3 flex-shrink-0" />
-        <span className="flex-grow truncate">No cycle</span>
-      </div>
-    ),
-  });
+
+  if (canRemoveCycle) {
+    options?.unshift({
+      value: null,
+      query: t("cycle.no_cycle"),
+      content: (
+        <div className="flex items-center gap-2">
+          <ContrastIcon className="h-3 w-3 flex-shrink-0" />
+          <span className="flex-grow truncate">{t("cycle.no_cycle")}</span>
+        </div>
+      ),
+    });
+  }
 
   const filteredOptions =
     query === "" ? options : options?.filter((o) => o.query.toLowerCase().includes(query.toLowerCase()));
@@ -122,7 +136,7 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
             className="w-full bg-transparent py-1 text-xs text-custom-text-200 placeholder:text-custom-text-400 focus:outline-none"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
+            placeholder={t("common.search.label")}
             displayValue={(assigned: any) => assigned?.name}
             onKeyDown={searchInputKeyDown}
           />
@@ -149,10 +163,10 @@ export const CycleOptions: FC<CycleOptionsProps> = observer((props) => {
                 </Combobox.Option>
               ))
             ) : (
-              <p className="px-1.5 py-1 italic text-custom-text-400">No matches found</p>
+              <p className="px-1.5 py-1 italic text-custom-text-400">{t("common.search.no_matches_found")}</p>
             )
           ) : (
-            <p className="px-1.5 py-1 italic text-custom-text-400">Loading...</p>
+            <p className="px-1.5 py-1 italic text-custom-text-400">{t("common.loading")}</p>
           )}
         </div>
       </div>

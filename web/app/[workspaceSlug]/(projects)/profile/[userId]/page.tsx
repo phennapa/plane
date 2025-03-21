@@ -3,8 +3,11 @@
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 // types
+import { GROUP_CHOICES } from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { IUserStateDistribution, TStateGroups } from "@plane/types";
 // components
+import { ContentWrapper } from "@plane/ui";
 import { PageHead } from "@/components/core";
 import {
   ProfileActivity,
@@ -15,7 +18,6 @@ import {
 } from "@/components/profile";
 // constants
 import { USER_PROFILE_DATA } from "@/constants/fetch-keys";
-import { GROUP_CHOICES } from "@/constants/project";
 // services
 import { UserService } from "@/services/user.service";
 
@@ -25,6 +27,7 @@ const userService = new UserService();
 export default function ProfileOverviewPage() {
   const { workspaceSlug, userId } = useParams();
 
+  const { t } = useTranslation();
   const { data: userProfile } = useSWR(
     workspaceSlug && userId ? USER_PROFILE_DATA(workspaceSlug.toString(), userId.toString()) : null,
     workspaceSlug && userId ? () => userService.getUserProfileData(workspaceSlug.toString(), userId.toString()) : null
@@ -39,8 +42,8 @@ export default function ProfileOverviewPage() {
 
   return (
     <>
-      <PageHead title="Profile - Summary" />
-      <div className="h-full w-full space-y-7 overflow-y-auto px-5 py-5 md:px-9 vertical-scrollbar scrollbar-md">
+      <PageHead title={t("profile.page_label")} />
+      <ContentWrapper className="space-y-7">
         <ProfileStats userProfile={userProfile} />
         <ProfileWorkload stateDistribution={stateDistribution} />
         <div className="grid grid-cols-1 items-stretch gap-5 xl:grid-cols-2">
@@ -48,7 +51,7 @@ export default function ProfileOverviewPage() {
           <ProfileStateDistribution stateDistribution={stateDistribution} userProfile={userProfile} />
         </div>
         <ProfileActivity />
-      </div>
+      </ContentWrapper>
     </>
   );
 }

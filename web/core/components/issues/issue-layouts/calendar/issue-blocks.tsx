@@ -1,7 +1,8 @@
 import { observer } from "mobx-react";
-import { TIssue, TIssueMap, TPaginationData } from "@plane/types";
+import { useTranslation } from "@plane/i18n";
+import { TIssue, TPaginationData } from "@plane/types";
 // components
-import { CalendarQuickAddIssueForm, CalendarIssueBlockRoot } from "@/components/issues";
+import { CalendarQuickAddIssueActions, CalendarIssueBlockRoot } from "@/components/issues";
 // helpers
 import { renderFormattedPayloadDate } from "@/helpers/date-time.helper";
 import { useIssuesStore } from "@/hooks/use-issue-layout-store";
@@ -10,7 +11,6 @@ import { TRenderQuickActions } from "../list/list-view-types";
 
 type Props = {
   date: Date;
-  issues: TIssueMap | undefined;
   loadMoreIssues: (dateString: string) => void;
   getPaginationData: (groupId: string | undefined) => TPaginationData | undefined;
   getGroupIssueCount: (groupId: string | undefined) => number | undefined;
@@ -23,12 +23,13 @@ type Props = {
   addIssuesToView?: (issueIds: string[]) => Promise<any>;
   readOnly?: boolean;
   isMobileView?: boolean;
+  canEditProperties: (projectId: string | undefined) => boolean;
+  isEpic?: boolean;
 };
 
 export const CalendarIssueBlocks: React.FC<Props> = observer((props) => {
   const {
     date,
-    issues,
     issueIdList,
     quickActions,
     loadMoreIssues,
@@ -39,8 +40,11 @@ export const CalendarIssueBlocks: React.FC<Props> = observer((props) => {
     addIssuesToView,
     readOnly,
     isMobileView = false,
+    canEditProperties,
+    isEpic = false,
   } = props;
   const formattedDatePayload = renderFormattedPayloadDate(date);
+  const { t } = useTranslation();
 
   const {
     issues: { getGroupIssueCount, getPaginationData, getIssueLoader },
@@ -62,10 +66,11 @@ export const CalendarIssueBlocks: React.FC<Props> = observer((props) => {
       {issueIdList?.map((issueId) => (
         <div key={issueId} className="relative cursor-pointer p-1 px-2">
           <CalendarIssueBlockRoot
-            issues={issues}
             issueId={issueId}
             quickActions={quickActions}
             isDragDisabled={isDragDisabled || isMobileView}
+            canEditProperties={canEditProperties}
+            isEpic={isEpic}
           />
         </div>
       ))}
@@ -78,14 +83,13 @@ export const CalendarIssueBlocks: React.FC<Props> = observer((props) => {
 
       {enableQuickIssueCreate && !disableIssueCreation && !readOnly && (
         <div className="border-b border-custom-border-200 px-1 py-1 md:border-none md:px-2">
-          <CalendarQuickAddIssueForm
-            formKey="target_date"
-            groupId={formattedDatePayload}
+          <CalendarQuickAddIssueActions
             prePopulatedData={{
               target_date: formattedDatePayload,
             }}
             quickAddCallback={quickAddCallback}
             addIssuesToView={addIssuesToView}
+            isEpic={isEpic}
           />
         </div>
       )}
@@ -94,10 +98,10 @@ export const CalendarIssueBlocks: React.FC<Props> = observer((props) => {
         <div className="flex items-center px-2.5 py-1">
           <button
             type="button"
-            className="w-min whitespace-nowrap rounded text-xs px-1.5 py-1 text-custom-text-400 font-medium  hover:bg-custom-background-80 hover:text-custom-text-300"
+            className="w-min whitespace-nowrap rounded text-xs px-1.5 py-1 font-medium  hover:bg-custom-background-80 text-custom-primary-100 hover:text-custom-primary-200"
             onClick={() => loadMoreIssues(formattedDatePayload)}
           >
-            Load More
+            {t("common.load_more")}
           </button>
         </div>
       )}

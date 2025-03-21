@@ -7,14 +7,17 @@ import { TwitterPicker } from "react-color";
 import { Controller, useForm } from "react-hook-form";
 import { ChevronDown } from "lucide-react";
 import { Dialog, Popover, Transition } from "@headlessui/react";
-import type { IIssueLabel, IState } from "@plane/types";
-// hooks
-import { Button, Input, TOAST_TYPE, setToast } from "@plane/ui";
-import { LABEL_COLOR_OPTIONS, getRandomLabelColor } from "@/constants/label";
-import { useLabel } from "@/hooks/store";
-// ui
+// plane imports
+import { ETabIndices, LABEL_COLOR_OPTIONS, getRandomLabelColor } from "@plane/constants";
 // types
-// constants
+import type { IIssueLabel, IState } from "@plane/types";
+// ui
+import { Button, Input, TOAST_TYPE, setToast } from "@plane/ui";
+// helpers
+import { getTabIndex } from "@/helpers/tab-indices.helper";
+// hooks
+import { useLabel } from "@/hooks/store";
+import { usePlatformOS } from "@/hooks/use-platform-os";
 
 // types
 type Props = {
@@ -35,6 +38,7 @@ export const CreateLabelModal: React.FC<Props> = observer((props) => {
   const { workspaceSlug } = useParams();
   // store hooks
   const { createLabel } = useLabel();
+  const { isMobile } = usePlatformOS();
   // form info
   const {
     formState: { errors, isSubmitting },
@@ -47,6 +51,8 @@ export const CreateLabelModal: React.FC<Props> = observer((props) => {
   } = useForm<IIssueLabel>({
     defaultValues,
   });
+
+  const { getIndex } = getTabIndex(ETabIndices.CREATE_LABEL, isMobile);
 
   /**
    * For setting focus on name input
@@ -109,7 +115,13 @@ export const CreateLabelModal: React.FC<Props> = observer((props) => {
               leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
             >
               <Dialog.Panel className="relative transform rounded-lg bg-custom-background-100 px-4 pb-4 pt-5 text-left shadow-custom-shadow-md transition-all sm:my-8 sm:w-full sm:max-w-2xl sm:p-6">
-                <form onSubmit={handleSubmit(onSubmit)}>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit(onSubmit)(e);
+                  }}
+                >
                   <div>
                     <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-custom-text-100">
                       Create Label
@@ -183,7 +195,7 @@ export const CreateLabelModal: React.FC<Props> = observer((props) => {
                               value={value}
                               onChange={onChange}
                               ref={ref}
-                              tabIndex={1}
+                              tabIndex={getIndex("name")}
                               hasError={Boolean(errors.name)}
                               placeholder="Label title"
                               className="w-full resize-none text-xl"

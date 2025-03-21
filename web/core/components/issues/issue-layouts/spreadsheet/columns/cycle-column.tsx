@@ -32,7 +32,7 @@ export const SpreadsheetCycleColumn: React.FC<Props> = observer((props) => {
       if (cycleId) await addCycleToIssue(workspaceSlug.toString(), issue.project_id, cycleId, issue.id);
       else await removeCycleFromIssue(workspaceSlug.toString(), issue.project_id, issue.id);
       captureIssueEvent({
-        eventName: "Issue updated",
+        eventName: "Work item updated",
         payload: {
           ...issue,
           cycle_id: cycleId,
@@ -54,8 +54,8 @@ export const SpreadsheetCycleColumn: React.FC<Props> = observer((props) => {
         disabled={disabled}
         placeholder="Select cycle"
         buttonVariant="transparent-with-text"
-        buttonContainerClassName="w-full relative flex items-center p-2 group-[.selected-issue-row]:bg-custom-primary-100/5 group-[.selected-issue-row]:hover:bg-custom-primary-100/10"
-        buttonClassName="relative leading-4 h-4.5 bg-transparent hover:bg-transparent"
+        buttonContainerClassName="w-full relative flex items-center p-2 group-[.selected-issue-row]:bg-custom-primary-100/5 group-[.selected-issue-row]:hover:bg-custom-primary-100/10 px-page-x"
+        buttonClassName="relative leading-4 h-4.5 bg-transparent hover:bg-transparent px-0"
         onClose={onClose}
       />
     </div>

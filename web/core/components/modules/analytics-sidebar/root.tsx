@@ -17,8 +17,19 @@ import {
   Users,
 } from "lucide-react";
 import { Disclosure, Transition } from "@headlessui/react";
+// plane types
+import {
+  MODULE_STATUS,
+  MODULE_LINK_CREATED,
+  MODULE_LINK_DELETED,
+  MODULE_LINK_UPDATED,
+  MODULE_UPDATED,
+  EUserPermissions,
+  EUserPermissionsLevel,
+} from "@plane/constants";
+import { useTranslation } from "@plane/i18n";
 import { ILinkDetails, IModule, ModuleLink } from "@plane/types";
-// ui
+// plane ui
 import {
   CustomMenu,
   Loader,
@@ -31,22 +42,20 @@ import {
   TextArea,
 } from "@plane/ui";
 // components
-import { LinkModal, LinksList } from "@/components/core";
 import { DateRangeDropdown, MemberDropdown } from "@/components/dropdowns";
-import { ArchiveModuleModal, DeleteModuleModal, ModuleAnalyticsProgress } from "@/components/modules";
 import {
-  MODULE_LINK_CREATED,
-  MODULE_LINK_DELETED,
-  MODULE_LINK_UPDATED,
-  MODULE_UPDATED,
-} from "@/constants/event-tracker";
-import { MODULE_STATUS } from "@/constants/module";
-import { EUserProjectRoles } from "@/constants/project";
+  ArchiveModuleModal,
+  DeleteModuleModal,
+  CreateUpdateModuleLinkModal,
+  ModuleAnalyticsProgress,
+  ModuleLinksList,
+} from "@/components/modules";
+
 // helpers
 import { getDate, renderFormattedPayloadDate } from "@/helpers/date-time.helper";
 import { copyUrlToClipboard } from "@/helpers/string.helper";
 // hooks
-import { useModule, useUser, useEventTracker, useProjectEstimates } from "@/hooks/store";
+import { useModule, useEventTracker, useProjectEstimates, useUserPermissions } from "@/hooks/store";
 import { useAppRouter } from "@/hooks/use-app-router";
 // plane web constants
 import { EEstimateSystem } from "@/plane-web/constants/estimates";
@@ -78,9 +87,9 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
   const { workspaceSlug, projectId } = useParams();
 
   // store hooks
-  const {
-    membership: { currentProjectRole },
-  } = useUser();
+  const { t } = useTranslation();
+  const { allowPermissions } = useUserPermissions();
+
   const { getModuleById, updateModuleDetails, createModuleLink, updateModuleLink, deleteModuleLink, restoreModule } =
     useModule();
   const { setTrackElement, captureModuleEvent, captureEvent } = useEventTracker();
@@ -121,25 +130,12 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
 
     const payload = { metadata: {}, ...formData };
 
-    createModuleLink(workspaceSlug.toString(), projectId.toString(), moduleId.toString(), payload)
-      .then(() => {
-        captureEvent(MODULE_LINK_CREATED, {
-          module_id: moduleId,
-          state: "SUCCESS",
-        });
-        setToast({
-          type: TOAST_TYPE.SUCCESS,
-          title: "Success!",
-          message: "Module link created successfully.",
-        });
+    await createModuleLink(workspaceSlug.toString(), projectId.toString(), moduleId.toString(), payload).then(() =>
+      captureEvent(MODULE_LINK_CREATED, {
+        module_id: moduleId,
+        state: "SUCCESS",
       })
-      .catch(() => {
-        setToast({
-          type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: "Some error occurred",
-        });
-      });
+    );
   };
 
   const handleUpdateLink = async (formData: ModuleLink, linkId: string) => {
@@ -147,25 +143,13 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
 
     const payload = { metadata: {}, ...formData };
 
-    updateModuleLink(workspaceSlug.toString(), projectId.toString(), moduleId.toString(), linkId, payload)
-      .then(() => {
+    await updateModuleLink(workspaceSlug.toString(), projectId.toString(), moduleId.toString(), linkId, payload).then(
+      () =>
         captureEvent(MODULE_LINK_UPDATED, {
           module_id: moduleId,
           state: "SUCCESS",
-        });
-        setToast({
-          type: TOAST_TYPE.SUCCESS,
-          title: "Success!",
-          message: "Module link updated successfully.",
-        });
-      })
-      .catch(() => {
-        setToast({
-          type: TOAST_TYPE.ERROR,
-          title: "Error!",
-          message: "Some error occurred",
-        });
-      });
+        })
+    );
   };
 
   const handleDeleteLink = async (linkId: string) => {
@@ -276,27 +260,33 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
   const moduleStatus = MODULE_STATUS.find((status) => status.value === moduleDetails.status);
 
   const issueCount =
-    moduleDetails.total_issues === 0 ? "0 Issue" : `${moduleDetails.completed_issues}/${moduleDetails.total_issues}`;
+    moduleDetails.total_issues === 0
+      ? "0 work items"
+      : `${moduleDetails.completed_issues}/${moduleDetails.total_issues}`;
 
   const issueEstimatePointCount =
     moduleDetails.total_estimate_points === 0
-      ? "0 Issue"
+      ? "0 work items"
       : `${moduleDetails.completed_estimate_points}/${moduleDetails.total_estimate_points}`;
 
-  const isEditingAllowed = !!currentProjectRole && currentProjectRole >= EUserProjectRoles.MEMBER;
+  const isEditingAllowed = allowPermissions(
+    [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+    EUserPermissionsLevel.PROJECT
+  );
 
   return (
     <div className="relative">
-      <LinkModal
+      <CreateUpdateModuleLinkModal
         isOpen={moduleLinkModal}
         handleClose={() => {
           setModuleLinkModal(false);
-          setSelectedLinkToUpdate(null);
+          setTimeout(() => {
+            setSelectedLinkToUpdate(null);
+          }, 500);
         }}
         data={selectedLinkToUpdate}
-        status={selectedLinkToUpdate ? true : false}
-        createIssueLink={handleCreateLink}
-        updateIssueLink={handleUpdateLink}
+        createLink={handleCreateLink}
+        updateLink={handleUpdateLink}
       />
       {workspaceSlug && projectId && (
         <ArchiveModuleModal
@@ -309,7 +299,9 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
       )}
       <DeleteModuleModal isOpen={moduleDeleteModal} onClose={() => setModuleDeleteModal(false)} data={moduleDetails} />
       <>
-        <div className="sticky z-10 top-0 flex items-center justify-between bg-custom-sidebar-background-100 py-5">
+        <div
+          className={`sticky z-10 top-0 flex items-center justify-between bg-custom-sidebar-background-100 pb-5 pt-5`}
+        >
           <div>
             <button
               className="flex h-5 w-5 items-center justify-center rounded-full bg-custom-border-300"
@@ -331,7 +323,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                     {isInArchivableGroup ? (
                       <div className="flex items-center gap-2">
                         <ArchiveIcon className="h-3 w-3" />
-                        Archive module
+                        {t("project_module.archive_module")}
                       </div>
                     ) : (
                       <div className="flex items-start gap-2">
@@ -339,7 +331,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                         <div className="-mt-1">
                           <p>Archive module</p>
                           <p className="text-xs text-custom-text-400">
-                            Only completed or cancelled <br /> module can be archived.
+                            {t("project_module.quick_actions.archive_module_description")}
                           </p>
                         </div>
                       </div>
@@ -350,7 +342,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                   <CustomMenu.MenuItem onClick={handleRestoreModule}>
                     <span className="flex items-center justify-start gap-2">
                       <ArchiveRestoreIcon className="h-3 w-3" />
-                      <span>Restore module</span>
+                      <span>{t("project_module.restore_module")}</span>
                     </span>
                   </CustomMenu.MenuItem>
                 )}
@@ -362,7 +354,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                 >
                   <span className="flex items-center justify-start gap-2">
                     <Trash2 className="h-3 w-3" />
-                    <span>Delete module</span>
+                    <span>{t("project_module.delete_module")}</span>
                   </span>
                 </CustomMenu.MenuItem>
               </CustomMenu>
@@ -387,7 +379,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                         backgroundColor: moduleStatus ? `${moduleStatus.color}20` : "#a3a3a220",
                       }}
                     >
-                      {moduleStatus?.label ?? "Backlog"}
+                      {(moduleStatus && t(moduleStatus?.i18n_label)) ?? t("project_modules.status.backlog")}
                     </span>
                   }
                   value={value}
@@ -400,7 +392,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                     <CustomSelect.Option key={status.value} value={status.value}>
                       <div className="flex items-center gap-2">
                         <ModuleStatusIcon status={status.value} />
-                        {status.label}
+                        {t(status.i18n_label)}
                       </div>
                     </CustomSelect.Option>
                   ))}
@@ -419,54 +411,53 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
           />
         )}
 
-        <div className="flex items-center justify-start gap-1">
-          <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
-            <CalendarClock className="h-4 w-4" />
-            <span className="text-base">Date range</span>
-          </div>
-          <div className="h-7 w-3/5">
-            <Controller
-              control={control}
-              name="start_date"
-              render={({ field: { value: startDateValue, onChange: onChangeStartDate } }) => (
-                <Controller
-                  control={control}
-                  name="target_date"
-                  render={({ field: { value: endDateValue, onChange: onChangeEndDate } }) => {
-                    const startDate = getDate(startDateValue);
-                    const endDate = getDate(endDateValue);
-                    return (
-                      <DateRangeDropdown
-                        buttonContainerClassName="w-full"
-                        buttonVariant="background-with-text"
-                        value={{
-                          from: startDate,
-                          to: endDate,
-                        }}
-                        onSelect={(val) => {
-                          onChangeStartDate(val?.from ? renderFormattedPayloadDate(val.from) : null);
-                          onChangeEndDate(val?.to ? renderFormattedPayloadDate(val.to) : null);
-                          handleDateChange(val?.from, val?.to);
-                        }}
-                        placeholder={{
-                          from: "Start date",
-                          to: "Target date",
-                        }}
-                        disabled={!isEditingAllowed || isArchived}
-                      />
-                    );
-                  }}
-                />
-              )}
-            />
-          </div>
-        </div>
-
         <div className="flex flex-col gap-5 pb-6 pt-2.5">
           <div className="flex items-center justify-start gap-1">
             <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
+              <CalendarClock className="h-4 w-4" />
+              <span className="text-base">{t("date_range")}</span>
+            </div>
+            <div className="h-7">
+              <Controller
+                control={control}
+                name="start_date"
+                render={({ field: { value: startDateValue, onChange: onChangeStartDate } }) => (
+                  <Controller
+                    control={control}
+                    name="target_date"
+                    render={({ field: { value: endDateValue, onChange: onChangeEndDate } }) => {
+                      const startDate = getDate(startDateValue);
+                      const endDate = getDate(endDateValue);
+                      return (
+                        <DateRangeDropdown
+                          buttonContainerClassName="w-full"
+                          buttonVariant="background-with-text"
+                          value={{
+                            from: startDate,
+                            to: endDate,
+                          }}
+                          onSelect={(val) => {
+                            onChangeStartDate(val?.from ? renderFormattedPayloadDate(val.from) : null);
+                            onChangeEndDate(val?.to ? renderFormattedPayloadDate(val.to) : null);
+                            handleDateChange(val?.from, val?.to);
+                          }}
+                          placeholder={{
+                            from: t("start_date"),
+                            to: t("end_date"),
+                          }}
+                          disabled={!isEditingAllowed || isArchived}
+                        />
+                      );
+                    }}
+                  />
+                )}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-start gap-1">
+            <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
               <SquareUser className="h-4 w-4" />
-              <span className="text-base">Lead</span>
+              <span className="text-base">{t("lead")}</span>
             </div>
             <Controller
               control={control}
@@ -481,7 +472,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                     projectId={projectId?.toString() ?? ""}
                     multiple={false}
                     buttonVariant="background-with-text"
-                    placeholder="Lead"
+                    placeholder={t("lead")}
                     disabled={!isEditingAllowed || isArchived}
                     icon={SquareUser}
                   />
@@ -492,7 +483,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
           <div className="flex items-center justify-start gap-1">
             <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
               <Users className="h-4 w-4" />
-              <span className="text-base">Members</span>
+              <span className="text-base">{t("members")}</span>
             </div>
             <Controller
               control={control}
@@ -517,7 +508,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
           <div className="flex items-center justify-start gap-1">
             <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
               <LayersIcon className="h-4 w-4" />
-              <span className="text-base">Issues</span>
+              <span className="text-base">{t("issues")}</span>
             </div>
             <div className="flex h-7 w-3/5 items-center">
               <span className="px-1.5 text-sm text-custom-text-300">{issueCount}</span>
@@ -531,7 +522,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
             <div className="flex items-center justify-start gap-1">
               <div className="flex w-2/5 items-center justify-start gap-2 text-custom-text-300">
                 <LayersIcon className="h-4 w-4" />
-                <span className="text-base">Points</span>
+                <span className="text-base">{t("points")}</span>
               </div>
               <div className="flex h-7 w-3/5 items-center">
                 <span className="px-1.5 text-sm text-custom-text-300">{issueEstimatePointCount}</span>
@@ -556,7 +547,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                 <div className={`relative  flex  h-full w-full flex-col ${open ? "" : "flex-row"}`}>
                   <Disclosure.Button className="flex w-full items-center justify-between gap-2 p-1.5">
                     <div className="flex items-center justify-start gap-2 text-sm">
-                      <span className="font-medium text-custom-text-200">Links</span>
+                      <span className="font-medium text-custom-text-200">{t("common.links")}</span>
                     </div>
 
                     <div className="flex items-center gap-2.5">
@@ -565,8 +556,8 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                   </Disclosure.Button>
                   <Transition show={open}>
                     <Disclosure.Panel>
-                      <div className="mt-2 flex h-72 w-full flex-col space-y-3 overflow-y-auto">
-                        {currentProjectRole && moduleDetails.link_module && moduleDetails.link_module.length > 0 ? (
+                      <div className="mt-2 flex min-h-72 w-full flex-col space-y-3 overflow-y-auto">
+                        {isEditingAllowed && moduleDetails.link_module && moduleDetails.link_module.length > 0 ? (
                           <>
                             {isEditingAllowed && !isArchived && (
                               <div className="flex w-full items-center justify-end">
@@ -575,23 +566,17 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                                   onClick={() => setModuleLinkModal(true)}
                                 >
                                   <Plus className="h-3 w-3" />
-                                  Add link
+                                  {t("add_link")}
                                 </button>
                               </div>
                             )}
 
                             {moduleId && (
-                              <LinksList
+                              <ModuleLinksList
                                 moduleId={moduleId}
                                 handleEditLink={handleEditLink}
                                 handleDeleteLink={handleDeleteLink}
-                                userAuth={{
-                                  isGuest: currentProjectRole === EUserProjectRoles.GUEST,
-                                  isViewer: currentProjectRole === EUserProjectRoles.VIEWER,
-                                  isMember: currentProjectRole === EUserProjectRoles.MEMBER,
-                                  isOwner: currentProjectRole === EUserProjectRoles.ADMIN,
-                                }}
-                                disabled={isArchived}
+                                disabled={!isEditingAllowed || isArchived}
                               />
                             )}
                           </>
@@ -599,7 +584,9 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                               <Info className="h-3.5 w-3.5 stroke-[1.5] text-custom-text-300" />
-                              <span className="p-0.5 text-xs text-custom-text-300">No links added yet</span>
+                              <span className="p-0.5 text-xs text-custom-text-300">
+                                {t("common.no_links_added_yet")}
+                              </span>
                             </div>
                             {isEditingAllowed && !isArchived && (
                               <button
@@ -607,7 +594,7 @@ export const ModuleAnalyticsSidebar: React.FC<Props> = observer((props) => {
                                 onClick={() => setModuleLinkModal(true)}
                               >
                                 <Plus className="h-3 w-3" />
-                                Add link
+                                {t("add_link")}
                               </button>
                             )}
                           </div>
