@@ -699,6 +699,7 @@
     "property": "Propriété",
     "properties": "Propriétés",
     "parent": "Parent",
+    "page": "Pâge",
     "remove": "Supprimer",
     "archiving": "Archivage",
     "archive": "Archiver",
@@ -856,7 +857,7 @@
     "you": "Vous",
     "upgrade_cta": {
       "higher_subscription": "Passer à une abonnement plus élevé",
-      "talk_to_sales": "Parler à la vente"
+      "talk_to_sales": "Parler aux ventes"
     },
     "category": "Catégorie",
     "categories": "Catégories",
@@ -865,7 +866,8 @@
     "delete": "Supprimer",
     "deleting": "Suppression",
     "pending": "En attente",
-    "invite": "Inviter"
+    "invite": "Inviter",
+    "view": "Afficher"
   },
 
   "chart": {
