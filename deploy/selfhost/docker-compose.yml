@@ -63,8 +63,6 @@ services:
   web:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-frontend:${APP_RELEASE:-stable}
     command: node web/server.js web
-    environment:
-      <<: [*app-env]
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
@@ -88,8 +86,6 @@ services:
   admin:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-admin:${APP_RELEASE:-stable}
     command: node admin/server.js admin
-    environment:
-      <<: [*app-env]
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
