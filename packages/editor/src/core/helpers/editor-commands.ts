@@ -1,10 +1,9 @@
 import { Editor, Range } from "@tiptap/core";
 // extensions
+import { InsertImageComponentProps } from "@/extensions";
 import { replaceCodeWithText } from "@/extensions/code/utils/replace-code-block-with-text";
 // helpers
 import { findTableAncestor } from "@/helpers/common";
-// types
-import { InsertImageComponentProps } from "@/extensions";
 
 export const setText = (editor: Editor, range?: Range) => {
   if (range) editor.chain().focus().deleteRange(range).setNode("paragraph").run();
@@ -206,6 +205,7 @@ export const insertHorizontalRule = (editor: Editor, range?: Range) => {
   if (range) editor.chain().focus().deleteRange(range).setHorizontalRule().run();
   else editor.chain().focus().setHorizontalRule().run();
 };
+
 export const insertCallout = (editor: Editor, range?: Range) => {
   if (range) editor.chain().focus().deleteRange(range).insertCallout().run();
   else editor.chain().focus().insertCallout().run();

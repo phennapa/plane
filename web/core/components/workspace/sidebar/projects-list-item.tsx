@@ -24,7 +24,7 @@ import { LeaveProjectModal, PublishProjectModal } from "@/components/project";
 // helpers
 import { cn } from "@/helpers/common.helper";
 // hooks
-import { useAppTheme, useEventTracker, useProject, useUserPermissions } from "@/hooks/store";
+import { useAppTheme, useCommandPalette, useEventTracker, useProject, useUserPermissions } from "@/hooks/store";
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane-web components
 import { ProjectNavigationRoot } from "@/plane-web/components/sidebar";
@@ -64,12 +64,13 @@ export const SidebarProjectsListItem: React.FC<Props> = observer((props) => {
   const { getPartialProjectById } = useProject();
   const { isMobile } = usePlatformOS();
   const { allowPermissions } = useUserPermissions();
+  const { getIsProjectListOpen, toggleProjectListOpen } = useCommandPalette();
   // states
   const [leaveProjectModalOpen, setLeaveProjectModal] = useState(false);
   const [publishModalOpen, setPublishModal] = useState(false);
   const [isMenuActive, setIsMenuActive] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [isProjectListOpen, setIsProjectListOpen] = useState(false);
+  const isProjectListOpen = getIsProjectListOpen(projectId);
   const [instruction, setInstruction] = useState<"DRAG_OVER" | "DRAG_BELOW" | undefined>(undefined);
   // refs
   const actionSectionRef = useRef<HTMLDivElement | null>(null);
@@ -79,6 +80,8 @@ export const SidebarProjectsListItem: React.FC<Props> = observer((props) => {
   const { workspaceSlug, projectId: URLProjectId } = useParams();
   // derived values
   const project = getPartialProjectById(projectId);
+  // toggle project list open
+  const setIsProjectListOpen = (value: boolean) => toggleProjectListOpen(projectId, value);
   // auth
   const isAdmin = allowPermissions(
     [EUserPermissions.ADMIN],
@@ -198,7 +201,7 @@ export const SidebarProjectsListItem: React.FC<Props> = observer((props) => {
     if (URLProjectId === project.id) setIsProjectListOpen(true);
   }, [URLProjectId]);
 
-  const handleItemClick = () => setIsProjectListOpen((prev) => !prev);
+  const handleItemClick = () => setIsProjectListOpen(!isProjectListOpen);
   return (
     <>
       <PublishProjectModal isOpen={publishModalOpen} project={project} onClose={() => setPublishModal(false)} />
@@ -332,7 +335,7 @@ export const SidebarProjectsListItem: React.FC<Props> = observer((props) => {
                         <div className="flex h-4 w-4 cursor-pointer items-center justify-center rounded text-custom-sidebar-text-200 transition-all duration-300 hover:bg-custom-sidebar-background-80">
                           <Share2 className="h-3.5 w-3.5 stroke-[1.5]" />
                         </div>
-                        <div>{t("publish_settings")}</div>
+                        <div>{t("publish_project")}</div>
                       </div>
                     </CustomMenu.MenuItem>
                   )}

@@ -64,6 +64,7 @@ export type TIssue = TBaseIssue & {
   tempId?: string;
   // sourceIssueId is used to store the original issue id when creating a copy of an issue. Used in cloning property values. It is not a part of the API response.
   sourceIssueId?: string;
+  state__group?: string | null;
 };
 
 export type TIssueMap = {
@@ -120,7 +121,7 @@ export type TBulkOperationsPayload = {
 
 export type TIssueDetailWidget = "sub-issues" | "relations" | "links" | "attachments";
 
-export type TIssueServiceType = EIssueServiceType.ISSUES | EIssueServiceType.EPICS;
+export type TIssueServiceType = EIssueServiceType.ISSUES | EIssueServiceType.EPICS | EIssueServiceType.WORK_ITEMS;
 
 export interface IPublicIssue
   extends Pick<

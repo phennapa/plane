@@ -1,7 +1,7 @@
 "use client";
 import React, { FC } from "react";
 import { observer } from "mobx-react";
-import { EIssueServiceType } from "@plane/constants";
+// plane imports
 import { TIssueServiceType } from "@plane/types";
 import { Collapsible } from "@plane/ui";
 // components
@@ -14,16 +14,14 @@ type Props = {
   projectId: string;
   issueId: string;
   disabled?: boolean;
-  issueServiceType?: TIssueServiceType;
+  issueServiceType: TIssueServiceType;
 };
 
 export const SubIssuesCollapsible: FC<Props> = observer((props) => {
-  const { workspaceSlug, projectId, issueId, disabled = false, issueServiceType = EIssueServiceType.ISSUES } = props;
-
+  const { workspaceSlug, projectId, issueId, disabled = false, issueServiceType } = props;
   // store hooks
   const { openWidgets, toggleOpenWidget } = useIssueDetail(issueServiceType);
-
-  // derived state
+  // derived values
   const isCollapsibleOpen = openWidgets.includes("sub-issues");
 
   return (
@@ -35,7 +33,8 @@ export const SubIssuesCollapsible: FC<Props> = observer((props) => {
           isOpen={isCollapsibleOpen}
           parentIssueId={issueId}
           disabled={disabled}
-          issueServiceType={issueServiceType}
+          projectId={projectId}
+          workspaceSlug={workspaceSlug}
         />
       }
       buttonClassName="w-full"
