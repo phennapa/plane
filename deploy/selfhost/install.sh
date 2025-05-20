@@ -4,10 +4,10 @@ BRANCH=${BRANCH:-master}
 SCRIPT_DIR=$PWD
 SERVICE_FOLDER=plane-app
 PLANE_INSTALL_DIR=$PWD/$SERVICE_FOLDER
-export APP_RELEASE=stable
-export DOCKERHUB_USER=artifacts.plane.so/makeplane
+export APP_RELEASE="stable"
+export DOCKERHUB_USER=ghcr.io/phennapa/plane
 export PULL_POLICY=${PULL_POLICY:-if_not_present}
-export GH_REPO=makeplane/plane
+export GH_REPO=phennapa/plane
 export RELEASE_DOWNLOAD_URL="https://github.com/$GH_REPO/releases/download"
 export FALLBACK_DOWNLOAD_URL="https://raw.githubusercontent.com/$GH_REPO/$BRANCH/deploy/selfhost"
 
@@ -77,7 +77,7 @@ function initialize(){
         return 1
     fi
 
-    local IMAGE_NAME=makeplane/plane-proxy
+    local IMAGE_NAME=ghcr.io/phennapa/plane/plane-proxy
     local IMAGE_TAG=${APP_RELEASE}
     docker manifest inspect "${IMAGE_NAME}:${IMAGE_TAG}" | grep -q "\"architecture\": \"${CPU_ARCH}\"" &
     local pid=$!
@@ -247,49 +247,8 @@ function download() {
         mv $PLANE_INSTALL_DIR/docker-compose.yaml $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml
     fi
 
-    RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$RELEASE_DOWNLOAD_URL/$APP_RELEASE/docker-compose.yml?$(date +%s)")
-    BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-    STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-    if [ "$STATUS" -eq 200 ]; then
-        echo "$BODY" > $PLANE_INSTALL_DIR/docker-compose.yaml
-    else
-        # Fallback to download from the raw github url
-        RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$FALLBACK_DOWNLOAD_URL/docker-compose.yml?$(date +%s)")
-        BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-        STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-        if [ "$STATUS" -eq 200 ]; then
-            echo "$BODY" > $PLANE_INSTALL_DIR/docker-compose.yaml
-        else
-            echo "Failed to download docker-compose.yml. HTTP Status: $STATUS"
-            echo "URL: $RELEASE_DOWNLOAD_URL/$APP_RELEASE/docker-compose.yml"
-            mv $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml $PLANE_INSTALL_DIR/docker-compose.yaml
-            exit 1
-        fi
-    fi
-
-    RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$RELEASE_DOWNLOAD_URL/$APP_RELEASE/variables.env?$(date +%s)")
-    BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-    STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-    if [ "$STATUS" -eq 200 ]; then
-        echo "$BODY" > $PLANE_INSTALL_DIR/variables-upgrade.env
-    else
-        # Fallback to download from the raw github url
-        RESPONSE=$(curl -H 'Cache-Control: no-cache, no-store' -s -w "HTTPSTATUS:%{http_code}" "$FALLBACK_DOWNLOAD_URL/variables.env?$(date +%s)")
-        BODY=$(echo "$RESPONSE" | sed -e 's/HTTPSTATUS\:.*//g')
-        STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
-
-        if [ "$STATUS" -eq 200 ]; then
-            echo "$BODY" > $PLANE_INSTALL_DIR/variables-upgrade.env
-        else
-            echo "Failed to download variables.env. HTTP Status: $STATUS"
-            echo "URL: $RELEASE_DOWNLOAD_URL/$APP_RELEASE/variables.env"
-            mv $PLANE_INSTALL_DIR/archive/$TS.docker-compose.yaml $PLANE_INSTALL_DIR/docker-compose.yaml
-            exit 1
-        fi
-    fi
+    curl -H 'Cache-Control: no-cache, no-store' -s -o $PLANE_INSTALL_DIR/docker-compose.yaml  https://raw.githubusercontent.com/phennapa/plane/$BRANCH/deploy/selfhost/docker-compose.yml?$(date +%s)
+    curl -H 'Cache-Control: no-cache, no-store' -s -o $PLANE_INSTALL_DIR/variables-upgrade.env https://raw.githubusercontent.com/phennapa/plane/$BRANCH/deploy/selfhost/variables.env?$(date +%s)
 
     if [ -f "$DOCKER_ENV_PATH" ];
     then
@@ -631,7 +590,7 @@ if [ -f "$DOCKER_ENV_PATH" ]; then
     CUSTOM_BUILD=$(getEnvValue "CUSTOM_BUILD" "$DOCKER_ENV_PATH")
 
     if [ -z "$DOCKERHUB_USER" ]; then
-        DOCKERHUB_USER=artifacts.plane.so/makeplane
+        DOCKERHUB_USER=ghcr.io/phennapa/plane
         updateEnvFile "DOCKERHUB_USER" "$DOCKERHUB_USER" "$DOCKER_ENV_PATH"
     fi
 
