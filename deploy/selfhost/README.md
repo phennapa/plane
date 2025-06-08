@@ -66,7 +66,8 @@ cd plane-selfhost
 #### For *Docker Compose* based setup
 
 ```
-curl -fsSL -o setup.sh https://github.com/makeplane/plane/releases/latest/download/setup.sh
+<!-- curl -fsSL -o setup.sh https://github.com/makeplane/plane/releases/latest/download/setup.sh -->
+curl -fsSL -o setup.sh https://raw.githubusercontent.com/phennapa/plane/master/deploy/selfhost/install.sh
 
 chmod +x setup.sh
 ```
@@ -75,9 +76,24 @@ chmod +x setup.sh
 
 ```
 curl -fsSL -o setup.sh https://github.com/makeplane/plane/releases/latest/download/swarm.sh
+```
+
+<details>
+    <summary>Downloading Preview Release</summary>
+
+```
+mkdir plane-selfhost
+
+cd plane-selfhost
+
+export RELEASE=preview
+
+curl -fsSL https://raw.githubusercontent.com/phennapa/plane/$BRANCH/deploy/selfhost/install.sh | sed  's@BRANCH=master@BRANCH='"$RELEASE"'@' > setup.sh
 
 chmod +x setup.sh
 ```
+
+</details>
 
 ---
 
@@ -567,7 +583,7 @@ Begin with downloading the migration script using below command
 
 ```
 
-curl -fsSL -o migrate.sh https://raw.githubusercontent.com/makeplane/plane/master/deploy/selfhost/migration-0.13-0.14.sh
+curl -fsSL -o migrate.sh https://raw.githubusercontent.com/phennapa/plane/master/deploy/selfhost/migration-0.13-0.14.sh
 
 chmod +x migrate.sh
 
