@@ -28,6 +28,8 @@ on:
   push:
     branches:
       - master
+      - canary
+      - preview
   release:
     types: [released, prereleased]
 
