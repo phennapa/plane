@@ -42,6 +42,8 @@ export interface IInstanceConfig {
   is_google_enabled: boolean;
   is_github_enabled: boolean;
   is_gitlab_enabled: boolean;
+  is_oidc_enabled: boolean;
+  is_oidc_auto: boolean;
   is_magic_login_enabled: boolean;
   is_email_password_enabled: boolean;
   github_app_name: string | undefined;
@@ -49,7 +51,7 @@ export interface IInstanceConfig {
   posthog_api_key: string | undefined;
   posthog_host: string | undefined;
   has_unsplash_configured: boolean;
-  has_openai_configured: boolean;
+  has_llm_configured: boolean;
   file_size_limit: number | undefined;
   is_smtp_configured: boolean;
   app_base_url: string | undefined;

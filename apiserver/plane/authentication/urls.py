@@ -14,6 +14,8 @@ from .views import (
     GitHubOauthInitiateEndpoint,
     GoogleCallbackEndpoint,
     GoogleOauthInitiateEndpoint,
+    OpenIDConnectCallbackEndpoint,
+    OpenIDConnectInitiateEndpoint,
     MagicGenerateEndpoint,
     MagicSignInEndpoint,
     MagicSignUpEndpoint,
@@ -30,6 +32,8 @@ from .views import (
     GitHubOauthInitiateSpaceEndpoint,
     GoogleCallbackSpaceEndpoint,
     GoogleOauthInitiateSpaceEndpoint,
+    OpenIDConnectCallbackSpaceEndpoint,
+    OpenIDConnectInitiateSpaceEndpoint,
     MagicGenerateSpaceEndpoint,
     MagicSignInSpaceEndpoint,
     MagicSignUpSpaceEndpoint,
@@ -42,11 +46,11 @@ urlpatterns = [
     # credentials
     path("sign-in/", SignInAuthEndpoint.as_view(), name="sign-in"),
     path("sign-up/", SignUpAuthEndpoint.as_view(), name="sign-up"),
-    path("spaces/sign-in/", SignInAuthSpaceEndpoint.as_view(), name="sign-in"),
-    path("spaces/sign-up/", SignUpAuthSpaceEndpoint.as_view(), name="sign-in"),
+    path("spaces/sign-in/", SignInAuthSpaceEndpoint.as_view(), name="space-sign-in"),
+    path("spaces/sign-up/", SignUpAuthSpaceEndpoint.as_view(), name="space-sign-up"),
     # signout
     path("sign-out/", SignOutAuthEndpoint.as_view(), name="sign-out"),
-    path("spaces/sign-out/", SignOutAuthSpaceEndpoint.as_view(), name="sign-out"),
+    path("spaces/sign-out/", SignOutAuthSpaceEndpoint.as_view(), name="space-sign-out"),
     # csrf token
     path("get-csrf-token/", CSRFTokenEndpoint.as_view(), name="get_csrf_token"),
     # Magic sign in
@@ -56,17 +60,17 @@ urlpatterns = [
     path(
         "spaces/magic-generate/",
         MagicGenerateSpaceEndpoint.as_view(),
-        name="magic-generate",
+        name="space-magic-generate",
     ),
     path(
         "spaces/magic-sign-in/",
         MagicSignInSpaceEndpoint.as_view(),
-        name="magic-sign-in",
+        name="space-magic-sign-in",
     ),
     path(
         "spaces/magic-sign-up/",
         MagicSignUpSpaceEndpoint.as_view(),
-        name="magic-sign-up",
+        name="space-magic-sign-up",
     ),
     ## Google Oauth
     path("google/", GoogleOauthInitiateEndpoint.as_view(), name="google-initiate"),
@@ -74,12 +78,12 @@ urlpatterns = [
     path(
         "spaces/google/",
         GoogleOauthInitiateSpaceEndpoint.as_view(),
-        name="google-initiate",
+        name="space-google-initiate",
     ),
     path(
-        "google/callback/",
+        "spaces/google/callback/",
         GoogleCallbackSpaceEndpoint.as_view(),
-        name="google-callback",
+        name="space-google-callback",
     ),
     ## Github Oauth
     path("github/", GitHubOauthInitiateEndpoint.as_view(), name="github-initiate"),
@@ -87,12 +91,12 @@ urlpatterns = [
     path(
         "spaces/github/",
         GitHubOauthInitiateSpaceEndpoint.as_view(),
-        name="github-initiate",
+        name="space-github-initiate",
     ),
     path(
         "spaces/github/callback/",
         GitHubCallbackSpaceEndpoint.as_view(),
-        name="github-callback",
+        name="space-github-callback",
     ),
     ## Gitlab Oauth
     path("gitlab/", GitLabOauthInitiateEndpoint.as_view(), name="gitlab-initiate"),
@@ -100,12 +104,33 @@ urlpatterns = [
     path(
         "spaces/gitlab/",
         GitLabOauthInitiateSpaceEndpoint.as_view(),
-        name="gitlab-initiate",
+        name="space-gitlab-initiate",
     ),
     path(
         "spaces/gitlab/callback/",
         GitLabCallbackSpaceEndpoint.as_view(),
-        name="gitlab-callback",
+        name="space-gitlab-callback",
+    ),
+    ## Open ID Connect
+    path(
+        "oidc/",
+        OpenIDConnectInitiateEndpoint.as_view(),
+        name="oidc-initiate",
+    ),
+    path(
+        "oidc/callback/",
+        OpenIDConnectCallbackEndpoint.as_view(),
+        name="oidc-callback",
+    ),
+    path(
+        "spaces/oidc/",
+        OpenIDConnectInitiateSpaceEndpoint.as_view(),
+        name="oidc-initiate",
+    ),
+    path(
+        "spaces/oidc/callback/",
+        OpenIDConnectCallbackSpaceEndpoint.as_view(),
+        name="oidc-callback",
     ),
     # Email Check
     path("email-check/", EmailCheckEndpoint.as_view(), name="email-check"),
@@ -120,12 +145,12 @@ urlpatterns = [
     path(
         "spaces/forgot-password/",
         ForgotPasswordSpaceEndpoint.as_view(),
-        name="forgot-password",
+        name="space-forgot-password",
     ),
     path(
         "spaces/reset-password/<uidb64>/<token>/",
         ResetPasswordSpaceEndpoint.as_view(),
-        name="forgot-password",
+        name="space-forgot-password",
     ),
     path("change-password/", ChangePasswordEndpoint.as_view(), name="forgot-password"),
     path("set-password/", SetUserPasswordEndpoint.as_view(), name="set-password"),

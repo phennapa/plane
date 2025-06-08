@@ -50,6 +50,7 @@ class InstanceEndpoint(BaseAPIView):
             IS_GITHUB_ENABLED,
             GITHUB_APP_NAME,
             IS_GITLAB_ENABLED,
+            IS_OIDC_ENABLED,
             EMAIL_HOST,
             ENABLE_MAGIC_LINK_LOGIN,
             ENABLE_EMAIL_PASSWORD,
@@ -57,7 +58,7 @@ class InstanceEndpoint(BaseAPIView):
             POSTHOG_API_KEY,
             POSTHOG_HOST,
             UNSPLASH_ACCESS_KEY,
-            OPENAI_API_KEY,
+            LLM_API_KEY,
             IS_INTERCOM_ENABLED,
             INTERCOM_APP_ID,
         ) = get_configuration_value(
@@ -86,7 +87,14 @@ class InstanceEndpoint(BaseAPIView):
                     "key": "IS_GITLAB_ENABLED",
                     "default": os.environ.get("IS_GITLAB_ENABLED", "0"),
                 },
-                {"key": "EMAIL_HOST", "default": os.environ.get("EMAIL_HOST", "")},
+                {
+                    "key": "IS_OIDC_ENABLED",
+                    "default": os.environ.get("IS_OIDC_ENABLED", "0"),
+                },
+                {
+                    "key": "EMAIL_HOST",
+                    "default": os.environ.get("EMAIL_HOST", ""),
+                },
                 {
                     "key": "ENABLE_MAGIC_LINK_LOGIN",
                     "default": os.environ.get("ENABLE_MAGIC_LINK_LOGIN", "1"),
@@ -112,8 +120,8 @@ class InstanceEndpoint(BaseAPIView):
                     "default": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
                 },
                 {
-                    "key": "OPENAI_API_KEY",
-                    "default": os.environ.get("OPENAI_API_KEY", ""),
+                    "key": "LLM_API_KEY",
+                    "default": os.environ.get("LLM_API_KEY", ""),
                 },
                 # Intercom settings
                 {
@@ -134,6 +142,7 @@ class InstanceEndpoint(BaseAPIView):
         data["is_google_enabled"] = IS_GOOGLE_ENABLED == "1"
         data["is_github_enabled"] = IS_GITHUB_ENABLED == "1"
         data["is_gitlab_enabled"] = IS_GITLAB_ENABLED == "1"
+        data["is_oidc_enabled"] = IS_OIDC_ENABLED == "1"
         data["is_magic_login_enabled"] = ENABLE_MAGIC_LINK_LOGIN == "1"
         data["is_email_password_enabled"] = ENABLE_EMAIL_PASSWORD == "1"
 
@@ -151,7 +160,7 @@ class InstanceEndpoint(BaseAPIView):
         data["has_unsplash_configured"] = bool(UNSPLASH_ACCESS_KEY)
 
         # Open AI settings
-        data["has_openai_configured"] = bool(OPENAI_API_KEY)
+        data["has_llm_configured"] = bool(LLM_API_KEY)
 
         # File size settings
         data["file_size_limit"] = float(os.environ.get("FILE_SIZE_LIMIT", 5242880))

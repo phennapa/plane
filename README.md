@@ -1,3 +1,12 @@
+<h1>OpenID Connect for Plane</h1>
+
+This repository tries to provide OpenID Connect to Plane, because there was no official implementation. Now there is an SSO Tax on it. This is an inofficial implementation and is not supported by or affiliated with the original Plane project.
+If you have issues with the Authentication process please raise an issue in this repo. For every other issue please make a request in the official repo: <a href="https://github.com/makeplane/plane">here</a>.
+
+To selfhost please follow <a href="https://github.com/phennapa/plane/tree/preview/deploy/selfhost">these instructions</a> here as they were addapted from the original documentation to work with this implementation.
+
+<h1>Original Information:</h1>
+
 <br /><br />
 
 <p align="center">
@@ -47,10 +56,10 @@ Meet [Plane](https://plane.so/), an open-source project management tool to track
 
 Getting started with Plane is simple. Choose the setup that works best for you:
 
-- **Plane Cloud**   
+- **Plane Cloud**
 Sign up for a free account on [Plane Cloud](https://app.plane.so)—it's the fastest way to get up and running without worrying about infrastructure.
 
-- **Self-host Plane**  
+- **Self-host Plane**
 Prefer full control over your data and infrastructure? Install and run Plane on your own servers. Follow our detailed [deployment guides](https://developers.plane.so/self-hosting/overview) to get started.
 
 | Installation methods | Docs link                                                                                                                                          |
@@ -62,22 +71,22 @@ Prefer full control over your data and infrastructure? Install and run Plane on 
 
 ## 🌟 Features
 
-- **Issues**  
+- **Issues**
 Efficiently create and manage tasks with a robust rich text editor that supports file uploads. Enhance organization and tracking by adding sub-properties and referencing related issues.
 
-- **Cycles**   
+- **Cycles**
 Maintain your team’s momentum with Cycles. Track progress effortlessly using burn-down charts and other insightful tools.
 
-- **Modules**  
-Simplify complex projects by dividing them into smaller, manageable modules. 
+- **Modules**
+Simplify complex projects by dividing them into smaller, manageable modules.
 
-- **Views**  
+- **Views**
 Customize your workflow by creating filters to display only the most relevant issues. Save and share these views with ease.
 
-- **Pages**  
+- **Pages**
 Capture and organize ideas using Plane Pages, complete with AI capabilities and a rich text editor. Format text, insert images, add hyperlinks, or convert your notes into actionable items.
 
-- **Analytics**  
+- **Analytics**
 Access real-time insights across all your Plane data. Visualize trends, remove blockers, and keep your projects moving forward.
 
 - **Drive** (_coming soon_): The drive helps you share documents, images, videos, or any other files that make sense to you or your team and align on the problem/solution.
@@ -85,38 +94,7 @@ Access real-time insights across all your Plane data. Visualize trends, remove b
 
 ## 🛠️ Local development
 
-### Pre-requisites
-- Ensure Docker Engine is installed and running.
-
-###  Development setup
-Setting up your local environment is simple and straightforward. Follow these steps to get started:
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/makeplane/plane.git
-   ```
-2. Navigate to the project folder:
-   ```
-   cd plane
-   ```
-3. Create a new branch for your feature or fix:
-   ```
-   git checkout -b <feature-branch-name>
-   ```
-4. Run the setup script in the terminal:
-   ```
-   ./setup.sh
-   ```
-5. Open the project in an IDE such as VS Code.
-
-6. Review the `.env` files in the relevant folders. Refer to [Environment Setup](./ENV_SETUP.md) for details on the environment variables used.
-
-7. Start the services using Docker:
-   ```
-   docker compose -f docker-compose-local.yml up -d
-   ```
-
-That’s it! You’re all set to begin coding. Remember to refresh your browser if changes don’t auto-reload. Happy contributing! 🎉
+See [CONTRIBUTING](./CONTRIBUTING.md)
 
 ## ⚙️ Built with
 [![Next JS](https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -194,7 +172,7 @@ Feel free to ask questions, report bugs, participate in discussions, share ideas
 
 If you discover a security vulnerability in Plane, please report it responsibly instead of opening a public issue. We take all legitimate reports seriously and will investigate them promptly. See [Security policy](https://github.com/makeplane/plane/blob/master/SECURITY.md) for more info.
 
-To disclose any security issues, please email us at security@plane.so. 
+To disclose any security issues, please email us at security@plane.so.
 
 ## 🤝 Contributing
 
