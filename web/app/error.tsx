@@ -1,10 +1,8 @@
 "use client";
 
 // ui
-import Link from "next/link";
-import { Button, TOAST_TYPE, getButtonStyling, setToast } from "@plane/ui";
+import { Button, TOAST_TYPE, setToast } from "@plane/ui";
 // helpers
-import { cn } from "@plane/utils";
 import { API_BASE_URL } from "@/helpers/common.helper";
 // hooks
 import { useAppRouter } from "@/hooks/use-app-router";
@@ -41,7 +39,7 @@ export default function CustomErrorComponent() {
       <div className={`h-screen w-full overflow-hidden bg-custom-background-100`}>
         <div className="grid h-full place-items-center p-4">
           <div className="space-y-8 text-center">
-            <div className="space-y-2 relative flex flex-col justify-center items-center">
+          <div className="space-y-2 relative flex flex-col justify-center items-center">
               <h3 className="text-lg font-semibold">Yikes! That doesn{"'"}t look good.</h3>
               <p className="mx-auto md:w-1/2 text-sm text-custom-text-200">
                 That crashed Plane, pun intended. No worries, though. Our engineers have been notified. If you have more
@@ -62,9 +60,9 @@ export default function CustomErrorComponent() {
               </p>
             </div>
             <div className="flex items-center justify-center gap-2">
-              <Link href="/" className={cn(getButtonStyling("primary", "md"))}>
-                Go to home
-              </Link>
+              <Button variant="primary" size="md" onClick={handleRefresh}>
+                Refresh
+              </Button>
               <Button variant="neutral-primary" size="md" onClick={handleSignOut}>
                 Sign out
               </Button>
