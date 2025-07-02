@@ -5,16 +5,15 @@ import { observer } from "mobx-react";
 import { Controller, useForm } from "react-hook-form";
 import { Pencil } from "lucide-react";
 // constants
-import { ORGANIZATION_SIZE, WORKSPACE_UPDATED, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { ORGANIZATION_SIZE, EUserPermissions, EUserPermissionsLevel, WORKSPACE_TRACKER_EVENTS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { IWorkspace } from "@plane/types";
 import { Button, CustomSelect, Input, TOAST_TYPE, setToast } from "@plane/ui";
-import { copyUrlToClipboard } from "@plane/utils";
+import { copyUrlToClipboard, getFileURL } from "@plane/utils";
 // components
 import { LogoSpinner } from "@/components/common";
 import { WorkspaceImageUploadModal } from "@/components/core";
 // helpers
-import { getFileURL } from "@/helpers/file.helper";
 // hooks
 import { useEventTracker, useUserPermissions, useWorkspace } from "@/hooks/store";
 // plane web components
@@ -63,7 +62,7 @@ export const WorkspaceDetails: FC = observer(() => {
     await updateWorkspace(currentWorkspace.slug, payload)
       .then((res) => {
         captureWorkspaceEvent({
-          eventName: WORKSPACE_UPDATED,
+          eventName: WORKSPACE_TRACKER_EVENTS.update,
           payload: {
             ...res,
             state: "SUCCESS",
@@ -78,7 +77,7 @@ export const WorkspaceDetails: FC = observer(() => {
       })
       .catch((err) => {
         captureWorkspaceEvent({
-          eventName: WORKSPACE_UPDATED,
+          eventName: WORKSPACE_TRACKER_EVENTS.update,
           payload: {
             state: "FAILED",
             element: "Workspace general settings page",

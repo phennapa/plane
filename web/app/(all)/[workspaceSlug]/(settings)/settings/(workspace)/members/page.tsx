@@ -5,11 +5,12 @@ import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 import { Search } from "lucide-react";
 // types
-import { MEMBER_INVITED, EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
+import { EUserPermissions, EUserPermissionsLevel, MEMBER_TRACKER_EVENTS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { IWorkspaceBulkInviteFormData } from "@plane/types";
 // ui
 import { Button, TOAST_TYPE, setToast } from "@plane/ui";
+import { cn, getUserRole } from "@plane/utils";
 // components
 import { NotAuthorizedView } from "@/components/auth-screens";
 import { CountChip } from "@/components/common";
@@ -17,8 +18,6 @@ import { PageHead } from "@/components/core";
 import { SettingsContentWrapper } from "@/components/settings";
 import { WorkspaceMembersList } from "@/components/workspace";
 // helpers
-import { cn } from "@/helpers/common.helper";
-import { getUserRole } from "@/helpers/user.helper";
 // hooks
 import { useEventTracker, useMember, useUserPermissions, useWorkspace } from "@/hooks/store";
 // plane web components
@@ -53,7 +52,7 @@ const WorkspaceMembersSettingsPage = observer(() => {
     return inviteMembersToWorkspace(workspaceSlug.toString(), data)
       .then(() => {
         setInviteModal(false);
-        captureEvent(MEMBER_INVITED, {
+        captureEvent(MEMBER_TRACKER_EVENTS.invite, {
           emails: [
             ...data.emails.map((email) => ({
               email: email.email,
@@ -71,7 +70,7 @@ const WorkspaceMembersSettingsPage = observer(() => {
         });
       })
       .catch((err) => {
-        captureEvent(MEMBER_INVITED, {
+        captureEvent(MEMBER_TRACKER_EVENTS.invite, {
           emails: [
             ...data.emails.map((email) => ({
               email: email.email,

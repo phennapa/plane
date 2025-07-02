@@ -1,10 +1,9 @@
 import { FC, useRef, useState } from "react";
 import { observer } from "mobx-react";
-// constants
-import { EIssueServiceType } from "@plane/constants";
 // types
-import { TNameDescriptionLoader } from "@plane/types";
+import { EIssueServiceType, TNameDescriptionLoader } from "@plane/types";
 // components
+import { cn } from "@plane/utils";
 import {
   DeleteIssueModal,
   IssuePeekOverviewHeader,
@@ -18,7 +17,6 @@ import {
   IssueDetailWidgets,
 } from "@/components/issues";
 // helpers
-import { cn } from "@/helpers/common.helper";
 // hooks
 import { useIssueDetail } from "@/hooks/store";
 import useKeypress from "@/hooks/use-keypress";
@@ -91,8 +89,9 @@ export const IssueView: FC<IIssueView> = observer((props) => {
 
   const handleKeyDown = () => {
     const slashCommandDropdownElement = document.querySelector("#slash-command");
+    const editorImageFullScreenModalElement = document.querySelector(".editor-image-full-screen-modal");
     const dropdownElement = document.activeElement?.tagName === "INPUT";
-    if (!isAnyModalOpen && !slashCommandDropdownElement && !dropdownElement) {
+    if (!isAnyModalOpen && !slashCommandDropdownElement && !dropdownElement && !editorImageFullScreenModalElement) {
       removeRoutePeekId();
       const issueElement = document.getElementById(`issue-${issueId}`);
       if (issueElement) issueElement?.focus();

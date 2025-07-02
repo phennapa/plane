@@ -2,13 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { CircleCheck, XCircle } from "lucide-react";
-import { CODE_VERIFIED } from "@plane/constants";
+import { API_BASE_URL, AUTH_TRACKER_EVENTS } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import { Button, Input, Spinner } from "@plane/ui";
 // constants
 // helpers
 import { EAuthModes } from "@/helpers/authentication.helper";
-import { API_BASE_URL } from "@/helpers/common.helper";
 // hooks
 import { useEventTracker } from "@/hooks/store";
 import useTimer from "@/hooks/use-timer";
@@ -85,7 +84,7 @@ export const AuthUniqueCodeForm: React.FC<TAuthUniqueCodeForm> = (props) => {
       action={`${API_BASE_URL}/auth/${mode === EAuthModes.SIGN_IN ? "magic-sign-in" : "magic-sign-up"}/`}
       onSubmit={() => {
         setIsSubmitting(true);
-        captureEvent(CODE_VERIFIED, {
+        captureEvent(AUTH_TRACKER_EVENTS.code_verify, {
           state: "SUCCESS",
           first_time: !isExistingEmail,
         });
