@@ -15,6 +15,7 @@ import { EmailCodesConfiguration } from "@/components/authentication/email-confi
 import { GithubConfiguration } from "@/components/authentication/github-config";
 import { GitlabConfiguration } from "@/components/authentication/gitlab-config";
 import { GoogleConfiguration } from "@/components/authentication/google-config";
+import { OpenIDConnectConfiguration } from "@/components/authentication/oidc-config";
 import { PasswordLoginConfiguration } from "@/components/authentication/password-config-switch";
 // plane admin components
 import { UpgradeButton } from "@/plane-admin/components/common";
@@ -81,8 +82,15 @@ export const getAuthenticationModes: (props: TGetBaseAuthenticationModeProps) =>
     config: <GitlabConfiguration disabled={disabled} updateConfig={updateConfig} />,
   },
   {
+    key: "oidc-inofficial",
+    name: "OIDC (Inofficial)",
+    description: "Authenticate your users via the OpenID Connect protocol.",
+    icon: <Image src={OIDCLogo} height={22} width={22} alt="OIDC Logo" />,
+    config: <OpenIDConnectConfiguration disabled={disabled} updateConfig={updateConfig} />,
+  },
+  {
     key: "oidc",
-    name: "OIDC",
+    name: "OIDC (Official)",
     description: "Authenticate your users via the OpenID Connect protocol.",
     icon: <Image src={OIDCLogo} height={22} width={22} alt="OIDC Logo" />,
     config: <UpgradeButton />,
