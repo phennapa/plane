@@ -3,21 +3,16 @@ import { FC, useState } from "react";
 import isEmpty from "lodash/isEmpty";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
+// plane internal packages
 import { API_BASE_URL } from "@plane/constants";
-// types
 import { IFormattedInstanceConfiguration, TInstanceConfigurationKeys, TInstanceOpenIDConnectAuthenticationConfigurationKeys } from "@plane/types";
-// ui
 import { Button, TOAST_TYPE, getButtonStyling, setToast, ToggleSwitch, setPromiseToast } from "@plane/ui";
 import { cn } from "@plane/utils";
 // components
-import {
-  CodeBlock,
-  ConfirmDiscardModal,
-  ControllerInput,
-  CopyField,
-  TControllerInputFormField,
-  TCopyField,
-} from "@/components/common";
+import { CodeBlock } from "@/components/common/code-block";
+import { ConfirmDiscardModal } from "@/components/common/confirm-discard-modal";
+import { ControllerInput, TControllerInputFormField } from "@/components/common/controller-input";
+import { CopyField, TCopyField } from "@/components/common/copy-field";
 // hooks
 import { useInstance } from "@/hooks/store";
 
