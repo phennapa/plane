@@ -28,14 +28,14 @@ class WorkSpaceMemberViewSet(BaseViewSet):
     model = WorkspaceMember
 
     search_fields = ["member__display_name", "member__first_name"]
+    use_read_replica = True
 
     def get_queryset(self):
         return self.filter_queryset(
             super()
             .get_queryset()
-            .filter(workspace__slug=self.kwargs.get("slug"), is_active=True)
-            .select_related("workspace", "workspace__owner")
-            .select_related("member")
+            .filter(workspace__slug=self.kwargs.get("slug"))
+            .select_related("member", "member__avatar_asset")
         )
 
     @allow_permission(
@@ -215,6 +215,8 @@ class WorkspaceMemberUserViewsEndpoint(BaseAPIView):
 
 
 class WorkspaceMemberUserEndpoint(BaseAPIView):
+    use_read_replica = True
+
     def get(self, request, slug):
         draft_issue_count = (
             DraftIssue.objects.filter(

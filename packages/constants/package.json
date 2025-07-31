@@ -1,15 +1,14 @@
 {
   "name": "@plane/constants",
-  "version": "0.27.1",
+  "version": "0.28.0",
   "private": true,
   "license": "AGPL-3.0",
-  "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "files": [
     "dist/**/*"
   ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -33,6 +32,7 @@
   "devDependencies": {
     "@plane/eslint-config": "*",
     "@plane/typescript-config": "*",
-    "tsup": "8.4.0"
+    "tsup": "8.4.0",
+    "typescript": "5.8.3"
   }
 }
