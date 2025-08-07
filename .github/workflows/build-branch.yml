@@ -32,11 +32,14 @@ on:
         type: boolean
   push:
     branches:
+      - master
       - preview
       - canary
+  release:
+    types: [released, prereleased]
 
 env:
-  TARGET_BRANCH: ${{ github.ref_name }}
+  TARGET_BRANCH: ${{ github.ref_name || github.event.release.target_commitish }}
   ARM64_BUILD: ${{ github.event.inputs.arm64 }}
   BUILD_TYPE: ${{ github.event.inputs.build_type }}
   RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
@@ -136,133 +139,242 @@ jobs:
     name: Build-Push Admin Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Admin Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_admin }}
-          build-context: .
-          dockerfile-path: ./apps/admin/Dockerfile.admin
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Admin Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: ./apps/admin/Dockerfile.admin
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-admin:${{ needs.branch_build_setup.outputs.release_version }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_web:
     name: Build-Push Web Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Web Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_web }}
-          build-context: .
-          dockerfile-path: ./apps/web/Dockerfile.web
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Web Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: ./apps/web/Dockerfile.web
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-frontend:${{ needs.branch_build_setup.outputs.release_version }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_space:
     name: Build-Push Space Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Space Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_space }}
-          build-context: .
-          dockerfile-path: ./apps/space/Dockerfile.space
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Space Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: ./apps/space/Dockerfile.space
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-space:${{ needs.branch_build_setup.outputs.release_version }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_live:
     name: Build-Push Live Collaboration Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Live Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_live }}
-          build-context: .
-          dockerfile-path: ./apps/live/Dockerfile.live
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Live Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: .
+          file: ./apps/live/Dockerfile.live
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-live:${{ needs.branch_build_setup.outputs.release_version }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_api:
     name: Build-Push API Server Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Backend Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_backend }}
-          build-context: ./apps/api
-          dockerfile-path: ./apps/api/Dockerfile.api
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Backend Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: ./apps/api
+          file: ./apps/api/Dockerfile.api
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-backend:${{ needs.branch_build_setup.outputs.release_version }}
+          no-cache: true
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_proxy:
     name: Build-Push Proxy Docker Image
     runs-on: ubuntu-22.04
     needs: [branch_build_setup]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
-      - name: Proxy Build and Push
-        uses: makeplane/actions/build-push@v1.0.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_proxy }}
-          build-context: ./apps/proxy
-          dockerfile-path: ./apps/proxy/Dockerfile.ce
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Proxy Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: ./apps/proxy
+          file: ./apps/proxy/Dockerfile.ce
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-proxy:${{ needs.branch_build_setup.outputs.release_version }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   branch_build_push_aio:
     if: ${{ needs.branch_build_setup.outputs.aio_build == 'true' }}
@@ -277,6 +389,11 @@ jobs:
         branch_build_push_api,
         branch_build_push_proxy
       ]
+    env:
+      BUILDX_DRIVER: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
+      BUILDX_VERSION: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
+      BUILDX_ENDPOINT: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
+      BUILDX_PLATFORMS: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
     steps:
       - name: Checkout Files
         uses: actions/checkout@v4
@@ -285,7 +402,6 @@ jobs:
         id: prepare_aio_assets
         run: |
           cd deployments/aio/community
-          
           if [ "${{ needs.branch_build_setup.outputs.build_type }}" == "Release" ]; then
             aio_version=${{ needs.branch_build_setup.outputs.release_version }}
           else
@@ -300,26 +416,37 @@ jobs:
           path: ./deployments/aio/community/dist
           name: aio-assets-dist
 
-      - name: AIO Build and Push
-        uses: makeplane/actions/build-push@v1.1.0
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          build-release: ${{ needs.branch_build_setup.outputs.build_release }}
-          build-prerelease: ${{ needs.branch_build_setup.outputs.build_prerelease }}
-          release-version: ${{ needs.branch_build_setup.outputs.release_version }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
-          docker-image-owner: makeplane
-          docker-image-name: ${{ needs.branch_build_setup.outputs.dh_img_aio }}
-          build-context: ./deployments/aio/community
-          dockerfile-path: ./deployments/aio/community/Dockerfile
-          buildx-driver: ${{ needs.branch_build_setup.outputs.gh_buildx_driver }}
-          buildx-version: ${{ needs.branch_build_setup.outputs.gh_buildx_version }}
-          buildx-platforms: ${{ needs.branch_build_setup.outputs.gh_buildx_platforms }}
-          buildx-endpoint: ${{ needs.branch_build_setup.outputs.gh_buildx_endpoint }}
-          additional-assets: aio-assets-dist
-          additional-assets-dir: ./deployments/aio/community/dist
+          registry: ${{ secrets.DOCKER_REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: ${{ env.BUILDX_DRIVER }}
+          version: ${{ env.BUILDX_VERSION }}
+          endpoint: ${{ env.BUILDX_ENDPOINT }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: AIO Build and Push
+        uses: docker/build-push-action@v5.1.0
+        with:
+          context: ./deployments/aio/community
+          file: ./deployments/aio/community/Dockerfile
+          platforms: ${{ env.BUILDX_PLATFORMS }}
+          push: true
+          tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-aio-community:${{ needs.branch_build_setup.outputs.release_version }}
           build-args: |
             PLANE_VERSION=${{ steps.prepare_aio_assets.outputs.AIO_BUILD_VERSION }}
+        env:
+          DOCKER_BUILDKIT: 1
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
   upload_build_assets:
     name: Upload Build Assets
@@ -339,7 +466,6 @@ jobs:
 
           cp ./deployments/cli/community/install.sh deployments/cli/community/setup.sh
           sed -i 's/${APP_RELEASE:-stable}/${APP_RELEASE:-'${REL_VERSION}'}/g' deployments/cli/community/docker-compose.yml
-          # sed -i 's/APP_RELEASE=stable/APP_RELEASE='${REL_VERSION}'/g' deployments/cli/community/variables.env
 
       - name: Upload Assets
         uses: actions/upload-artifact@v4
@@ -377,13 +503,12 @@ jobs:
         run: |
           cp ./deployments/cli/community/install.sh deployments/cli/community/setup.sh
           sed -i 's/${APP_RELEASE:-stable}/${APP_RELEASE:-'${REL_VERSION}'}/g' deployments/cli/community/docker-compose.yml
-          # sed -i 's/APP_RELEASE=stable/APP_RELEASE='${REL_VERSION}'/g' deployments/cli/community/variables.env
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v2.1.0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+          GITHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         with:
           tag_name: ${{ env.REL_VERSION }}
           name: ${{ env.REL_VERSION }}
