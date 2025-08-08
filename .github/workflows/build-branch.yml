@@ -76,10 +76,13 @@ jobs:
         name: Set Environment Variables
         run: |
           if [ "${{ env.ARM64_BUILD }}" == "true" ] || ([ "${{ env.BUILD_TYPE }}" == "Release" ] && [ "${{ env.IS_PRERELEASE }}" != "true" ]); then
-            echo "BUILDX_DRIVER=cloud" >> $GITHUB_OUTPUT
-            echo "BUILDX_VERSION=lab:latest" >> $GITHUB_OUTPUT
-            echo "BUILDX_PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
-            echo "BUILDX_ENDPOINT=" >> $GITHUB_OUTPUT
+            echo "BUILDX_DRIVER=docker-container" >> $GITHUB_OUTPUT
+            echo "BUILDX_VERSION=latest" >> $GITHUB_OUTPUT
+            if [ "${{ env.ARM64_BUILD }}" == "true" ]; then
+              echo "BUILDX_PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+            else
+              echo "BUILDX_PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
+            fi
           else
             echo "BUILDX_DRIVER=docker-container" >> $GITHUB_OUTPUT
             echo "BUILDX_VERSION=latest" >> $GITHUB_OUTPUT
