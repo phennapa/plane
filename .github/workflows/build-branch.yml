@@ -413,6 +413,11 @@ jobs:
           bash ./build.sh --release $aio_version
           echo "AIO_BUILD_VERSION=${aio_version}" >> $GITHUB_OUTPUT
 
+      - name: Assert AIO dist files exist
+        run: |
+          test -f deployments/aio/community/dist/plane.env
+          test -f deployments/aio/community/dist/Caddyfile
+
       - name: Upload AIO Assets
         uses: actions/upload-artifact@v4
         with:
@@ -432,9 +437,6 @@ jobs:
           driver: ${{ env.BUILDX_DRIVER }}
           version: ${{ env.BUILDX_VERSION }}
           endpoint: ${{ env.BUILDX_ENDPOINT }}
-
-      - name: Check out the repo
-        uses: actions/checkout@v4
 
       - name: AIO Build and Push
         uses: docker/build-push-action@v5.1.0
