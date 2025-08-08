@@ -445,6 +445,8 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_REGISTRY }}/${{ secrets.DOCKER_REPO }}/plane-aio-community:${{ needs.branch_build_setup.outputs.release_version }}
           build-args: |
+            REGISTRY=${{ secrets.DOCKER_REGISTRY }}
+            OWNER=${{ secrets.DOCKER_REPO }}
             PLANE_VERSION=${{ steps.prepare_aio_assets.outputs.AIO_BUILD_VERSION }}
         env:
           DOCKER_BUILDKIT: 1

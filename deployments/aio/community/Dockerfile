@@ -1,4 +1,6 @@
 ARG PLANE_VERSION=v0.27.1
+ARG REGISTRY=ghcr.io
+ARG REPO=phennapa/plane
 FROM --platform=$BUILDPLATFORM tonistiigi/binfmt AS binfmt
 
 # **************************************************
@@ -6,12 +8,12 @@ FROM --platform=$BUILDPLATFORM tonistiigi/binfmt AS binfmt
 # **************************************************
 FROM node:22-alpine AS node
 
-FROM ghcr.io/phennapa/plane-frontend:${PLANE_VERSION} AS web-img
-FROM ghcr.io/phennapa/plane-backend:${PLANE_VERSION} AS backend-img
-FROM ghcr.io/phennapa/plane-space:${PLANE_VERSION} AS space-img
-FROM ghcr.io/phennapa/plane-admin:${PLANE_VERSION} AS admin-img
-FROM ghcr.io/phennapa/plane-live:${PLANE_VERSION} AS live-img
-FROM ghcr.io/phennapa/plane-proxy:${PLANE_VERSION} AS proxy-img
+FROM ${REGISTRY}/${REPO}/plane-frontend:${PLANE_VERSION} AS web-img
+FROM ${REGISTRY}/${REPO}/plane-backend:${PLANE_VERSION} AS backend-img
+FROM ${REGISTRY}/${REPO}/plane-space:${PLANE_VERSION} AS space-img
+FROM ${REGISTRY}/${REPO}/plane-admin:${PLANE_VERSION} AS admin-img
+FROM ${REGISTRY}/${REPO}/plane-live:${PLANE_VERSION} AS live-img
+FROM ${REGISTRY}/${REPO}/plane-proxy:${PLANE_VERSION} AS proxy-img
 
 # **************************************************
 #  STAGE 1: Runner
