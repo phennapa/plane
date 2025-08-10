@@ -167,7 +167,7 @@ jobs:
       - name: Admin Build and Push
         uses: docker/build-push-action@v5.1.0
         with:
-          context: ./apps/admin
+          context: .
           file: ./apps/admin/Dockerfile.admin
           platforms: ${{ env.BUILDX_PLATFORMS }}
           push: true
@@ -207,7 +207,7 @@ jobs:
       - name: Web Build and Push
         uses: docker/build-push-action@v5.1.0
         with:
-          context: ./apps/web
+          context: .
           file: ./apps/web/Dockerfile.web
           platforms: ${{ env.BUILDX_PLATFORMS }}
           push: true
@@ -247,7 +247,7 @@ jobs:
       - name: Space Build and Push
         uses: docker/build-push-action@v5.1.0
         with:
-          context: ./apps/space
+          context: .
           file: ./apps/space/Dockerfile.space
           platforms: ${{ env.BUILDX_PLATFORMS }}
           push: true
@@ -287,7 +287,7 @@ jobs:
       - name: Live Build and Push
         uses: docker/build-push-action@v5.1.0
         with:
-          context: ./apps/live
+          context: .
           file: ./apps/live/Dockerfile.live
           platforms: ${{ env.BUILDX_PLATFORMS }}
           push: true
