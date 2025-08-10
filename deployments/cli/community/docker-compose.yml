@@ -69,7 +69,6 @@ x-app-env: &app-env
 services:
   web:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-frontend:${APP_RELEASE:-stable}
-    command: node web/server.js web
     deploy:
       replicas: ${WEB_REPLICAS:-1}
       restart_policy:
@@ -80,7 +79,6 @@ services:
 
   space:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-space:${APP_RELEASE:-stable}
-    command: node space/server.js space
     deploy:
       replicas: ${SPACE_REPLICAS:-1}
       restart_policy:
@@ -92,7 +90,6 @@ services:
 
   admin:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-admin:${APP_RELEASE:-stable}
-    command: node admin/server.js admin
     deploy:
       replicas: ${ADMIN_REPLICAS:-1}
       restart_policy:
@@ -103,7 +100,6 @@ services:
 
   live:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-live:${APP_RELEASE:-stable}
-    command: node live/dist/server.js live
     environment:
       <<: [*live-env]
     deploy:
@@ -228,6 +224,15 @@ services:
   # Comment this if you already have a reverse proxy running
   proxy:
     image: ${DOCKERHUB_USER:-ghcr.io/phennapa/plane}/plane-proxy:${APP_RELEASE:-stable}
+    command:
+      [
+        "caddy",
+        "run",
+        "--config",
+        "/etc/caddy/Caddyfile",
+        "--adapter",
+        "caddyfile",
+      ]
     deploy:
       replicas: 1
       restart_policy:

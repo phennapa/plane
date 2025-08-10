@@ -89,8 +89,7 @@ jobs:
             echo "BUILDX_PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
             echo "BUILDX_ENDPOINT=" >> $GITHUB_OUTPUT
           fi
-          BR_NAME=$( echo "${{ env.TARGET_BRANCH }}" |sed 's/[^a-zA-Z0-9.-]//g')
-          echo "TARGET_BRANCH=$BR_NAME" >> $GITHUB_OUTPUT
+          echo "TARGET_BRANCH=${{ env.TARGET_BRANCH }}" >> $GITHUB_OUTPUT
 
           echo "DH_IMG_WEB=plane-frontend" >> $GITHUB_OUTPUT
           echo "DH_IMG_SPACE=plane-space" >> $GITHUB_OUTPUT
@@ -487,7 +486,7 @@ jobs:
             ./deployments/swarm/community/swarm.sh
 
   publish_release:
-    if: ${{ needs.branch_build_setup.outputs.build_type == 'Release' }}
+    if: ${{ needs.branch_build_setup.outputs.build_type == 'Release' || github.event_name == 'release' }}
     name: Build Release
     runs-on: ubuntu-22.04
     needs:
@@ -501,7 +500,7 @@ jobs:
         branch_build_push_proxy,
       ]
     env:
-      REL_VERSION: ${{ needs.branch_build_setup.outputs.release_version }}
+      REL_VERSION: ${{ needs.branch_build_setup.outputs.build_type == 'Release' && needs.branch_build_setup.outputs.release_version || needs.branch_build_setup.outputs.gh_branch_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
