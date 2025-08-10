@@ -1,5 +1,4 @@
-import { TAnalyticsTabsBase } from "@plane/types";
-import { ChartXAxisProperty, ChartYAxisMetric } from "../chart";
+import { ChartXAxisProperty, ChartYAxisMetric, TAnalyticsTabsBase } from "@plane/types";
 
 export interface IInsightField {
   key: string;
@@ -7,11 +6,13 @@ export interface IInsightField {
   i18nProps?: {
     entity?: string;
     entityPlural?: string;
-    [key: string]: any;
+    prefix?: string;
+    suffix?: string;
+    [key: string]: unknown;
   };
 }
 
-export const insightsFields: Record<TAnalyticsTabsBase, IInsightField[]> = {
+export const ANALYTICS_INSIGHTS_FIELDS: Record<TAnalyticsTabsBase, IInsightField[]> = {
   overview: [
     {
       key: "total_users",
