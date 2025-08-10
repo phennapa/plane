@@ -500,7 +500,7 @@ jobs:
         branch_build_push_proxy,
       ]
     env:
-      REL_VERSION: ${{ needs.branch_build_setup.outputs.release_version }}
+      REL_VERSION: ${{ needs.branch_build_setup.outputs.build_type == 'Release' && needs.branch_build_setup.outputs.release_version || needs.branch_build_setup.outputs.gh_branch_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
