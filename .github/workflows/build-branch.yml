@@ -41,13 +41,10 @@ on:
 env:
   TARGET_BRANCH: ${{ github.ref_name || github.event.release.target_commitish }}
   ARM64_BUILD: ${{ github.event.inputs.arm64 }}
-  BUILD_TYPE: ${{ github.event.inputs.build_type || (github.event_name == 'release' && 'Release') || 'Build' }}
-  RELEASE_VERSION: >-
-    ${{ github.event.inputs.releaseVersion 
-        || (github.event.release.tag_name != '' && github.event.release.tag_name) 
-        || 'v0.0.0' }}
-  IS_PRERELEASE: ${{ github.event.inputs.isPrerelease || github.event.release.prerelease || false }}
-  AIO_BUILD: ${{ github.event.inputs.aio_build || true }}
+  BUILD_TYPE: ${{ github.event.inputs.build_type }}
+  RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
+  IS_PRERELEASE: ${{ github.event.inputs.isPrerelease }}
+  AIO_BUILD: ${{ github.event.inputs.aio_build }}
 
 jobs:
   branch_build_setup:
@@ -92,8 +89,7 @@ jobs:
             echo "BUILDX_PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
             echo "BUILDX_ENDPOINT=" >> $GITHUB_OUTPUT
           fi
-          BR_NAME=$( echo "${{ env.TARGET_BRANCH }}" |sed 's/[^a-zA-Z0-9.-]//g')
-          echo "TARGET_BRANCH=$BR_NAME" >> $GITHUB_OUTPUT
+          echo "TARGET_BRANCH=${{ env.TARGET_BRANCH }}" >> $GITHUB_OUTPUT
 
           echo "DH_IMG_WEB=plane-frontend" >> $GITHUB_OUTPUT
           echo "DH_IMG_SPACE=plane-space" >> $GITHUB_OUTPUT
@@ -490,7 +486,7 @@ jobs:
             ./deployments/swarm/community/swarm.sh
 
   publish_release:
-    if: ${{ needs.branch_build_setup.outputs.build_type == 'Release' }}
+    if: ${{ needs.branch_build_setup.outputs.build_type == 'Release' || github.event_name == 'release' }}
     name: Build Release
     runs-on: ubuntu-22.04
     needs:
