@@ -41,10 +41,13 @@ on:
 env:
   TARGET_BRANCH: ${{ github.ref_name || github.event.release.target_commitish }}
   ARM64_BUILD: ${{ github.event.inputs.arm64 }}
-  BUILD_TYPE: ${{ github.event.inputs.build_type }}
-  RELEASE_VERSION: ${{ github.event.inputs.releaseVersion }}
-  IS_PRERELEASE: ${{ github.event.inputs.isPrerelease }}
-  AIO_BUILD: ${{ github.event.inputs.aio_build }}
+  BUILD_TYPE: ${{ github.event.inputs.build_type || (github.event_name == 'release' && 'Release') || 'Build' }}
+  RELEASE_VERSION: >-
+    ${{ github.event.inputs.releaseVersion 
+        || (github.event.release.tag_name != '' && github.event.release.tag_name) 
+        || 'v0.0.0' }}
+  IS_PRERELEASE: ${{ github.event.inputs.isPrerelease || github.event.release.prerelease || false }}
+  AIO_BUILD: ${{ github.event.inputs.aio_build || true }}
 
 jobs:
   branch_build_setup:
