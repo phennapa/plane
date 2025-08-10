@@ -7,8 +7,6 @@ import {
   addRowBefore,
   CellSelection,
   columnResizing,
-  deleteColumn,
-  deleteRow,
   deleteTable,
   fixTables,
   goToNextCell,
@@ -19,13 +17,20 @@ import {
   toggleHeader,
   toggleHeaderCell,
 } from "@tiptap/pm/tables";
-
-import { tableControls } from "@/extensions/table/table/table-controls";
-import { TableView } from "@/extensions/table/table/table-view";
-import { createTable } from "@/extensions/table/table/utilities/create-table";
-import { deleteTableWhenAllCellsSelected } from "@/extensions/table/table/utilities/delete-table-when-all-cells-selected";
+import { Decoration } from "@tiptap/pm/view";
+// constants
+import { CORE_EXTENSIONS } from "@/constants/extension";
+// local imports
+import { TableInsertPlugin } from "../plugins/insert-handlers/plugin";
+import { tableControls } from "./table-controls";
+import { TableView } from "./table-view";
+import { createTable } from "./utilities/create-table";
+import { deleteColumnOrTable } from "./utilities/delete-column";
+import { handleDeleteKeyOnTable } from "./utilities/delete-key-shortcut";
+import { deleteRowOrTable } from "./utilities/delete-row";
 import { insertLineAboveTableAction } from "./utilities/insert-line-above-table-action";
 import { insertLineBelowTableAction } from "./utilities/insert-line-below-table-action";
+import { DEFAULT_COLUMN_WIDTH } from ".";
 
 export interface TableOptions {
   HTMLAttributes: Record<string, any>;
@@ -38,13 +43,8 @@ export interface TableOptions {
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
-    table: {
-      insertTable: (options?: {
-        rows?: number;
-        cols?: number;
-        withHeaderRow?: boolean;
-        columnWidth?: number;
-      }) => ReturnType;
+    [CORE_EXTENSIONS.TABLE]: {
+      insertTable: (options?: { rows?: number; cols?: number; withHeaderRow?: boolean }) => ReturnType;
       addColumnBefore: () => ReturnType;
       addColumnAfter: () => ReturnType;
       deleteColumn: () => ReturnType;
@@ -78,8 +78,8 @@ declare module "@tiptap/core" {
   }
 }
 
-export const Table = Node.create({
-  name: "table",
+export const Table = Node.create<TableOptions>({
+  name: CORE_EXTENSIONS.TABLE,
 
   addOptions() {
     return {
@@ -113,9 +113,15 @@ export const Table = Node.create({
   addCommands() {
     return {
       insertTable:
-        ({ rows = 3, cols = 3, withHeaderRow = false, columnWidth = 150 } = {}) =>
+        ({ rows = 3, cols = 3, withHeaderRow = false } = {}) =>
         ({ tr, dispatch, editor }) => {
-          const node = createTable(editor.schema, rows, cols, withHeaderRow, undefined, columnWidth);
+          const node = createTable({
+            schema: editor.schema,
+            rowsCount: rows,
+            colsCount: cols,
+            withHeaderRow,
+            columnWidth: DEFAULT_COLUMN_WIDTH,
+          });
           if (dispatch) {
             const offset = tr.selection.anchor + 1;
 
@@ -134,10 +140,7 @@ export const Table = Node.create({
         () =>
         ({ state, dispatch }) =>
           addColumnAfter(state, dispatch),
-      deleteColumn:
-        () =>
-        ({ state, dispatch }) =>
-          deleteColumn(state, dispatch),
+      deleteColumn: deleteColumnOrTable,
       addRowBefore:
         () =>
         ({ state, dispatch }) =>
@@ -146,10 +149,7 @@ export const Table = Node.create({
         () =>
         ({ state, dispatch }) =>
           addRowAfter(state, dispatch),
-      deleteRow:
-        () =>
-        ({ state, dispatch }) =>
-          deleteRow(state, dispatch),
+      deleteRow: deleteRowOrTable,
       deleteTable:
         () =>
         ({ state, dispatch }) =>
@@ -219,27 +219,35 @@ export const Table = Node.create({
   addKeyboardShortcuts() {
     return {
       Tab: () => {
-        if (this.editor.isActive("table")) {
-          if (this.editor.isActive("listItem") || this.editor.isActive("taskItem")) {
-            return false;
-          }
-          if (this.editor.commands.goToNextCell()) {
-            return true;
-          }
+        if (!this.editor.isActive(CORE_EXTENSIONS.TABLE)) return false;
 
-          if (!this.editor.can().addRowAfter()) {
-            return false;
-          }
-
-          return this.editor.chain().addRowAfter().goToNextCell().run();
+        if (this.editor.isActive(CORE_EXTENSIONS.LIST_ITEM) || this.editor.isActive(CORE_EXTENSIONS.TASK_ITEM)) {
+          return false;
         }
-        return false;
+
+        if (this.editor.commands.goToNextCell()) {
+          return true;
+        }
+
+        if (!this.editor.can().addRowAfter()) {
+          return false;
+        }
+
+        return this.editor.chain().addRowAfter().goToNextCell().run();
       },
-      "Shift-Tab": () => this.editor.commands.goToPreviousCell(),
-      Backspace: deleteTableWhenAllCellsSelected,
-      "Mod-Backspace": deleteTableWhenAllCellsSelected,
-      Delete: deleteTableWhenAllCellsSelected,
-      "Mod-Delete": deleteTableWhenAllCellsSelected,
+      "Shift-Tab": () => {
+        if (!this.editor.isActive(CORE_EXTENSIONS.TABLE)) return false;
+
+        if (this.editor.isActive(CORE_EXTENSIONS.LIST_ITEM) || this.editor.isActive(CORE_EXTENSIONS.TASK_ITEM)) {
+          return false;
+        }
+
+        return this.editor.commands.goToPreviousCell();
+      },
+      Backspace: handleDeleteKeyOnTable,
+      "Mod-Backspace": handleDeleteKeyOnTable,
+      Delete: handleDeleteKeyOnTable,
+      "Mod-Delete": handleDeleteKeyOnTable,
       ArrowDown: insertLineBelowTableAction,
       ArrowUp: insertLineAboveTableAction,
     };
@@ -249,7 +257,7 @@ export const Table = Node.create({
     return ({ editor, getPos, node, decorations }) => {
       const { cellMinWidth } = this.options;
 
-      return new TableView(node, cellMinWidth, decorations as any, editor, getPos as () => number);
+      return new TableView(node, cellMinWidth, decorations as Decoration[], editor, getPos as () => number);
     };
   },
 
@@ -261,6 +269,7 @@ export const Table = Node.create({
         allowTableNodeSelection: this.options.allowTableNodeSelection,
       }),
       tableControls(),
+      TableInsertPlugin(this.editor),
     ];
 
     if (isResizable) {

@@ -51,3 +51,7 @@ export * from "./multiple-sticky";
 export * from "./sticky-note-icon";
 export * from "./bar-icon";
 export * from "./tree-map-icon";
+export * from "./display-properties";
+export * from "./ai-icon";
+export * from "./plane-icon";
+export * from "./wiki-icon";

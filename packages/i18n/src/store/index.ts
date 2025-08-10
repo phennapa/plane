@@ -3,7 +3,7 @@ import get from "lodash/get";
 import merge from "lodash/merge";
 import { makeAutoObservable, runInAction } from "mobx";
 // constants
-import { FALLBACK_LANGUAGE, SUPPORTED_LANGUAGES, LANGUAGE_STORAGE_KEY } from "../constants";
+import { FALLBACK_LANGUAGE, SUPPORTED_LANGUAGES, LANGUAGE_STORAGE_KEY, ETranslationFiles } from "../constants";
 // core translations imports
 import coreEn from "../locales/en/core.json";
 // types
@@ -131,53 +131,31 @@ export class TranslationStore {
   }
 
   /**
+   * Helper function to import and merge multiple translation files for a language
+   * @param language - The language code
+   * @param files - Array of file names to import (without .json extension)
+   * @returns Promise that resolves to merged translations
+   */
+  private async importAndMergeFiles(language: TLanguage, files: string[]) {
+    try {
+      const importPromises = files.map((file) => import(`../locales/${language}/${file}.json`));
+
+      const modules = await Promise.all(importPromises);
+      const merged = modules.reduce((acc, module) => merge(acc, module.default), {});
+      return { default: merged };
+    } catch (error) {
+      throw new Error(`Failed to import and merge files for ${language}: ${error}`);
+    }
+  }
+
+  /**
    * Imports the translations for the given language
    * @param language - The language to import the translations for
    * @returns {Promise<any>}
    */
-  private importLanguageFile(language: TLanguage): Promise<any> {
-    switch (language) {
-      case "en":
-        return import("../locales/en/translations.json");
-      case "fr":
-        return import("../locales/fr/translations.json");
-      case "es":
-        return import("../locales/es/translations.json");
-      case "ja":
-        return import("../locales/ja/translations.json");
-      case "zh-CN":
-        return import("../locales/zh-CN/translations.json");
-      case "zh-TW":
-        return import("../locales/zh-TW/translations.json");
-      case "ru":
-        return import("../locales/ru/translations.json");
-      case "it":
-        return import("../locales/it/translations.json");
-      case "cs":
-        return import("../locales/cs/translations.json");
-      case "sk":
-        return import("../locales/sk/translations.json");
-      case "de":
-        return import("../locales/de/translations.json");
-      case "ua":
-        return import("../locales/ua/translations.json");
-      case "pl":
-        return import("../locales/pl/translations.json");
-      case "ko":
-        return import("../locales/ko/translations.json");
-      case "pt-BR":
-        return import("../locales/pt-BR/translations.json");
-      case "id":
-        return import("../locales/id/translations.json");
-      case "ro":
-        return import("../locales/ro/translations.json");
-      case "vi-VN":
-        return import("../locales/vi-VN/translations.json");
-      case "tr-TR":
-        return import("../locales/tr-TR/translations.json");
-      default:
-        throw new Error(`Unsupported language: ${language}`);
-    }
+  private async importLanguageFile(language: TLanguage) {
+    const files = Object.values(ETranslationFiles);
+    return this.importAndMergeFiles(language, files);
   }
 
   /** Checks if the language is valid based on the supported languages */
@@ -198,7 +176,6 @@ export class TranslationStore {
   /**
    * Gets the IntlMessageFormat instance for the given key and locale
    * Returns cached instance if available
-   * Throws an error if the key is not found in the translations
    */
   private getMessageInstance(key: string, locale: TLanguage): IntlMessageFormat | null {
     const cacheKey = this.getCacheKey(key, locale);
@@ -210,10 +187,10 @@ export class TranslationStore {
 
     // Get the message from the translations
     const message = get(this.translations[locale], key);
-    if (!message) return null;
+    if (typeof message !== "string") return null;
 
     try {
-      const formatter = new IntlMessageFormat(message as any, locale);
+      const formatter = new IntlMessageFormat(message, locale);
       this.messageCache.set(cacheKey, formatter);
       return formatter;
     } catch (error) {
@@ -230,7 +207,7 @@ export class TranslationStore {
    * @param params - The params to format the translation with
    * @returns The translated string
    */
-  t(key: string, params?: Record<string, any>): string {
+  t(key: string, params?: Record<string, unknown>): string {
     try {
       // Try current locale
       let formatter = this.getMessageInstance(key, this.currentLocale);

@@ -1,6 +1,9 @@
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorState, Selection } from "@tiptap/pm/state";
-// plane utils
+// plane imports
 import { cn } from "@plane/utils";
+// constants
+import { CORE_EXTENSIONS } from "@/constants/extension";
 
 interface EditorClassNames {
   noBorder?: boolean;
@@ -19,17 +22,28 @@ export const getEditorClassNames = ({ noBorder, borderOnFocus, containerClassNam
   );
 
 // Helper function to find the parent node of a specific type
-export function findParentNodeOfType(selection: Selection, typeName: string) {
+export const findParentNodeOfType = (
+  selection: Selection,
+  typeName: string[]
+): {
+  node: ProseMirrorNode;
+  pos: number;
+  depth: number;
+} | null => {
   let depth = selection.$anchor.depth;
   while (depth > 0) {
     const node = selection.$anchor.node(depth);
-    if (node.type.name === typeName) {
-      return { node, pos: selection.$anchor.start(depth) - 1 };
+    if (typeName.includes(node.type.name)) {
+      return {
+        node,
+        pos: selection.$anchor.start(depth) - 1,
+        depth,
+      };
     }
     depth--;
   }
   return null;
-}
+};
 
 export const findTableAncestor = (node: Node | null): HTMLTableElement | null => {
   while (node !== null && node.nodeName !== "TABLE") {
@@ -38,11 +52,10 @@ export const findTableAncestor = (node: Node | null): HTMLTableElement | null =>
   return node as HTMLTableElement;
 };
 
-export const getTrimmedHTML = (html: string) => {
-  html = html.replace(/^(<p><\/p>)+/, "");
-  html = html.replace(/(<p><\/p>)+$/, "");
-  return html;
-};
+export const getTrimmedHTML = (html: string) =>
+  html
+    .replace(/^(?:<p><\/p>)+/g, "") // Remove from beginning
+    .replace(/(?:<p><\/p>)+$/g, ""); // Remove from end
 
 export const isValidHttpUrl = (string: string): { isValid: boolean; url: string } => {
   // List of potentially dangerous protocols to block
@@ -68,7 +81,7 @@ export const isValidHttpUrl = (string: string): { isValid: boolean; url: string 
         url: string,
       };
     }
-  } catch (_) {
+  } catch {
     // Original string wasn't a valid URL - that's okay, we'll try with https
   }
 
@@ -80,7 +93,7 @@ export const isValidHttpUrl = (string: string): { isValid: boolean; url: string 
       isValid: true,
       url: urlWithHttps,
     };
-  } catch (_) {
+  } catch {
     return {
       isValid: false,
       url: string,
@@ -92,7 +105,7 @@ export const getParagraphCount = (editorState: EditorState | undefined) => {
   if (!editorState) return 0;
   let paragraphCount = 0;
   editorState.doc.descendants((node) => {
-    if (node.type.name === "paragraph" && node.content.size > 0) paragraphCount++;
+    if (node.type.name === CORE_EXTENSIONS.PARAGRAPH && node.content.size > 0) paragraphCount++;
   });
   return paragraphCount;
 };

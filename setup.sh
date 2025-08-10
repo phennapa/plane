@@ -22,14 +22,14 @@ echo -e "${BOLD}Setting up your development environment...${NC}\n"
 copy_env_file() {
     local source=$1
     local destination=$2
-    
+
     if [ ! -f "$source" ]; then
         echo -e "${RED}Error: Source file $source does not exist.${NC}"
         return 1
     fi
-    
+
     cp "$source" "$destination"
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓${NC} Copied $destination"
     else
@@ -44,35 +44,43 @@ export LC_CTYPE=C
 echo -e "${YELLOW}Setting up environment files...${NC}"
 
 # Copy all environment example files
-services=("" "web" "apiserver" "space" "admin" "live")
+services=("" "web" "api" "space" "admin" "live")
 success=true
 
 for service in "${services[@]}"; do
-    prefix="./"
-    if [ "$service" != "" ]; then
-        prefix="./$service/"
+    if [ "$service" == "" ]; then
+        # Handle root .env file
+        prefix="./"
+    else
+        # Handle service .env files in apps folder
+        prefix="./apps/$service/"
     fi
-    
+
     copy_env_file "${prefix}.env.example" "${prefix}.env" || success=false
 done
 
 # Generate SECRET_KEY for Django
-if [ -f "./apiserver/.env" ]; then
+if [ -f "./apps/api/.env" ]; then
     echo -e "\n${YELLOW}Generating Django SECRET_KEY...${NC}"
     SECRET_KEY=$(tr -dc 'a-z0-9' < /dev/urandom | head -c50)
-    
+
     if [ -z "$SECRET_KEY" ]; then
         echo -e "${RED}Error: Failed to generate SECRET_KEY.${NC}"
         echo -e "${RED}Ensure 'tr' and 'head' commands are available on your system.${NC}"
         success=false
     else
-        echo -e "SECRET_KEY=\"$SECRET_KEY\"" >> ./apiserver/.env
-        echo -e "${GREEN}✓${NC} Added SECRET_KEY to apiserver/.env"
+        echo -e "SECRET_KEY=\"$SECRET_KEY\"" >> ./apps/api/.env
+        echo -e "${GREEN}✓${NC} Added SECRET_KEY to apps/api/.env"
     fi
 else
-    echo -e "${RED}✗${NC} apiserver/.env not found. SECRET_KEY not added."
+    echo -e "${RED}✗${NC} apps/api/.env not found. SECRET_KEY not added."
     success=false
 fi
+
+# Activate Yarn (version set in package.json)
+corepack enable yarn || success=false
+# Install Node dependencies
+yarn install || success=false
 
 # Summary
 echo -e "\n${YELLOW}Setup status:${NC}"

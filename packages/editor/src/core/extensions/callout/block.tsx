@@ -1,5 +1,5 @@
-import React, { useState } from "react";
 import { NodeViewContent, NodeViewProps, NodeViewWrapper } from "@tiptap/react";
+import React, { useState } from "react";
 // constants
 import { COLORS_LIST } from "@/constants/common";
 // local components
@@ -10,14 +10,14 @@ import { EAttributeNames, TCalloutBlockAttributes } from "./types";
 // utils
 import { updateStoredBackgroundColor } from "./utils";
 
-type Props = NodeViewProps & {
+export type CustomCalloutNodeViewProps = NodeViewProps & {
   node: NodeViewProps["node"] & {
     attrs: TCalloutBlockAttributes;
   };
   updateAttributes: (attrs: Partial<TCalloutBlockAttributes>) => void;
 };
 
-export const CustomCalloutBlock: React.FC<Props> = (props) => {
+export const CustomCalloutBlock: React.FC<CustomCalloutNodeViewProps> = (props) => {
   const { editor, node, updateAttributes } = props;
   // states
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);

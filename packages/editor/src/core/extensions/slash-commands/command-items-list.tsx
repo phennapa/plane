@@ -14,6 +14,7 @@ import {
   ListTodo,
   MessageSquareText,
   MinusSquare,
+  Smile,
   Table,
   TextQuote,
 } from "lucide-react";
@@ -26,22 +27,17 @@ import {
   toggleBulletList,
   toggleOrderedList,
   toggleTaskList,
-  toggleHeadingOne,
-  toggleHeadingTwo,
-  toggleHeadingThree,
-  toggleHeadingFour,
-  toggleHeadingFive,
-  toggleHeadingSix,
+  toggleHeading,
   toggleTextColor,
   toggleBackgroundColor,
   insertImage,
   insertCallout,
   setText,
 } from "@/helpers/editor-commands";
-// types
-import { CommandProps, ISlashCommandItem, TSlashCommandSectionKeys } from "@/types";
 // plane editor extensions
 import { coreEditorAdditionalSlashCommandOptions } from "@/plane-editor/extensions";
+// types
+import { CommandProps, ISlashCommandItem, TSlashCommandSectionKeys } from "@/types";
 // local types
 import { TExtensionProps, TSlashCommandAdditionalOption } from "./root";
 
@@ -54,7 +50,7 @@ export type TSlashCommandSection = {
 export const getSlashCommandFilteredSections =
   (args: TExtensionProps) =>
   ({ query }: { query: string }): TSlashCommandSection[] => {
-    const { additionalOptions: externalAdditionalOptions, disabledExtensions } = args;
+    const { additionalOptions: externalAdditionalOptions, disabledExtensions, flaggedExtensions } = args;
     const SLASH_COMMAND_SECTIONS: TSlashCommandSection[] = [
       {
         key: "general",
@@ -75,7 +71,7 @@ export const getSlashCommandFilteredSections =
             description: "Big section heading.",
             searchTerms: ["title", "big", "large"],
             icon: <Heading1 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingOne(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 1, range),
           },
           {
             commandKey: "h2",
@@ -84,7 +80,7 @@ export const getSlashCommandFilteredSections =
             description: "Medium section heading.",
             searchTerms: ["subtitle", "medium"],
             icon: <Heading2 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingTwo(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 2, range),
           },
           {
             commandKey: "h3",
@@ -93,7 +89,7 @@ export const getSlashCommandFilteredSections =
             description: "Small section heading.",
             searchTerms: ["subtitle", "small"],
             icon: <Heading3 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingThree(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 3, range),
           },
           {
             commandKey: "h4",
@@ -102,7 +98,7 @@ export const getSlashCommandFilteredSections =
             description: "Small section heading.",
             searchTerms: ["subtitle", "small"],
             icon: <Heading4 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingFour(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 4, range),
           },
           {
             commandKey: "h5",
@@ -111,7 +107,7 @@ export const getSlashCommandFilteredSections =
             description: "Small section heading.",
             searchTerms: ["subtitle", "small"],
             icon: <Heading5 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingFive(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 5, range),
           },
           {
             commandKey: "h6",
@@ -120,7 +116,7 @@ export const getSlashCommandFilteredSections =
             description: "Small section heading.",
             searchTerms: ["subtitle", "small"],
             icon: <Heading6 className="size-3.5" />,
-            command: ({ editor, range }) => toggleHeadingSix(editor, range),
+            command: ({ editor, range }) => toggleHeading(editor, 6, range),
           },
           {
             commandKey: "to-do-list",
@@ -193,6 +189,17 @@ export const getSlashCommandFilteredSections =
             searchTerms: ["line", "divider", "horizontal", "rule", "separate"],
             icon: <MinusSquare className="size-3.5" />,
             command: ({ editor, range }) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
+          },
+          {
+            commandKey: "emoji",
+            key: "emoji",
+            title: "Emoji",
+            description: "Insert an emoji",
+            searchTerms: ["emoji", "icons", "reaction", "emoticon", "emotags"],
+            icon: <Smile className="size-3.5" />,
+            command: ({ editor, range }) => {
+              editor.chain().focus().insertContentAt(range, "<p>:</p>").run();
+            },
           },
         ],
       },
@@ -295,6 +302,7 @@ export const getSlashCommandFilteredSections =
       ...(externalAdditionalOptions ?? []),
       ...coreEditorAdditionalSlashCommandOptions({
         disabledExtensions,
+        flaggedExtensions,
       }),
     ]?.forEach((item) => {
       const sectionToPushTo = SLASH_COMMAND_SECTIONS.find((s) => s.key === item.section) ?? SLASH_COMMAND_SECTIONS[0];

@@ -25,6 +25,7 @@ export const getLegendProps = (args: TChartLegend): LegendProps => {
             width: "100%",
             justifyContent: "center",
           }),
+      ...args.wrapperStyles,
     },
     content: <CustomLegend {...args} />,
   };

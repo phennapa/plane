@@ -1,4 +1,11 @@
-import { TIssueGroupByOptions, TIssueOrderByOptions, IIssueDisplayProperties } from "@plane/types";
+import {
+  TIssueGroupByOptions,
+  TIssueOrderByOptions,
+  IIssueDisplayProperties,
+  IIssueFilterOptions,
+  TIssue,
+  EIssuesStoreType,
+} from "@plane/types";
 
 export const ALL_ISSUES = "All Issues";
 
@@ -22,6 +29,7 @@ export enum EIssueGroupByToServerOptions {
   "target_date" = "target_date",
   "project" = "project_id",
   "created_by" = "created_by",
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   "team_project" = "project_id",
 }
 
@@ -36,28 +44,6 @@ export enum EIssueGroupBYServerToProperty {
   "target_date" = "target_date",
   "project_id" = "project_id",
   "created_by" = "created_by",
-}
-
-export enum EIssueServiceType {
-  ISSUES = "issues",
-  EPICS = "epics",
-  WORK_ITEMS = "work-items",
-}
-
-export enum EIssuesStoreType {
-  GLOBAL = "GLOBAL",
-  PROFILE = "PROFILE",
-  TEAM = "TEAM",
-  PROJECT = "PROJECT",
-  CYCLE = "CYCLE",
-  MODULE = "MODULE",
-  TEAM_VIEW = "TEAM_VIEW",
-  PROJECT_VIEW = "PROJECT_VIEW",
-  ARCHIVED = "ARCHIVED",
-  DRAFT = "DRAFT",
-  DEFAULT = "DEFAULT",
-  WORKSPACE_DRAFT = "WORKSPACE_DRAFT",
-  EPIC = "EPIC",
 }
 
 export enum EIssueCommentAccessSpecifier {
@@ -163,6 +149,15 @@ export const ISSUE_DISPLAY_PROPERTIES_KEYS: (keyof IIssueDisplayProperties)[] = 
   "modules",
   "cycle",
   "issue_type",
+];
+
+export const SUB_ISSUES_DISPLAY_PROPERTIES_KEYS: (keyof IIssueDisplayProperties)[] = [
+  "key",
+  "assignee",
+  "start_date",
+  "due_date",
+  "priority",
+  "state",
 ];
 
 export const ISSUE_DISPLAY_PROPERTIES: {
@@ -352,3 +347,17 @@ export const SPREADSHEET_PROPERTY_DETAILS: {
     icon: "LayersIcon",
   },
 };
+
+// Map filter keys to their corresponding issue property keys
+export const FILTER_TO_ISSUE_MAP: Partial<Record<keyof IIssueFilterOptions, keyof TIssue>> = {
+  assignees: "assignee_ids",
+  created_by: "created_by",
+  labels: "label_ids",
+  priority: "priority",
+  cycle: "cycle_id",
+  module: "module_ids",
+  project: "project_id",
+  state: "state_id",
+  issue_type: "type_id",
+  state_group: "state__group",
+} as const;

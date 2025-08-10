@@ -43,6 +43,12 @@ export const LinkEditView = ({ viewProps }: LinkEditViewProps) => {
   const [linkRemoved, setLinkRemoved] = useState(false);
   const hasSubmitted = useRef(false);
 
+  const removeLink = useCallback(() => {
+    editor.view.dispatch(editor.state.tr.removeMark(from, to, editor.schema.marks.link));
+    setLinkRemoved(true);
+    closeLinkView();
+  }, [editor, from, to, closeLinkView]);
+
   // Effects
   useEffect(
     () =>
@@ -51,10 +57,12 @@ export const LinkEditView = ({ viewProps }: LinkEditViewProps) => {
         if (!hasSubmitted.current && !linkRemoved && initialUrl === "") {
           try {
             removeLink();
-          } catch (e) {}
+          } catch (e) {
+            console.error("Error removing link", e);
+          }
         }
       },
-    [linkRemoved, initialUrl]
+    [removeLink, linkRemoved, initialUrl]
   );
 
   // Sync state with props
@@ -103,13 +111,7 @@ export const LinkEditView = ({ viewProps }: LinkEditViewProps) => {
     }
 
     return true;
-  }, [editor, from, to, initialText, localText, localUrl]);
-
-  const removeLink = useCallback(() => {
-    editor.view.dispatch(editor.state.tr.removeMark(from, to, editor.schema.marks.link));
-    setLinkRemoved(true);
-    closeLinkView();
-  }, [editor, from, to, closeLinkView]);
+  }, [linkRemoved, positionRef, editor, from, to, initialText, localText, localUrl]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
